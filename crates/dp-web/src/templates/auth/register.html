@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng ký tài khoản — Distributed Proofreaders VN{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <h1 class="auth-title">Đăng ký thành viên</h1>
+    <p class="auth-subtitle">Tham gia cộng đồng soát lỗi sách tiếng Việt</p>
+
+    {% if error is defined and error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    {% if success is defined and success %}
+    <div class="alert alert-success">
+        {{ success }}
+    </div>
+    <div class="auth-footer">
+        <p><a href="/login" class="btn btn-primary">Đi đến trang đăng nhập</a></p>
+    </div>
+    {% else %}
+    <form method="post" action="/register" class="auth-form">
+        <div class="form-group">
+            <label for="username" class="form-label">Tên đăng nhập (3–32 ký tự)</label>
+            <input type="text" id="username" name="username" value="{{ username | default('') }}" required autofocus class="form-input" autocomplete="username">
+        </div>
+
+        <div class="form-group">
+            <label for="email" class="form-label">Địa chỉ email</label>
+            <input type="email" id="email" name="email" value="{{ email | default('') }}" required class="form-input" autocomplete="email">
+            <small class="form-hint">Email dùng để nhận liên kết kích hoạt tài khoản</small>
+        </div>
+
+        <div class="form-group">
+            <label for="real_name" class="form-label">Tên hiển thị (tùy chọn)</label>
+            <input type="text" id="real_name" name="real_name" value="{{ real_name | default('') }}" class="form-input">
+        </div>
+
+        <div class="form-group">
+            <label for="password" class="form-label">Mật khẩu (tối thiểu 10 ký tự)</label>
+            <input type="password" id="password" name="password" required class="form-input" autocomplete="new-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Tạo tài khoản</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>Đã có tài khoản? <a href="/login">Đăng nhập ngay</a></p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

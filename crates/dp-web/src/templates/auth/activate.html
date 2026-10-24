@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Kích hoạt tài khoản — Distributed Proofreaders VN{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    {% if success %}
+    <h1 class="auth-title text-success">Kích hoạt thành công!</h1>
+    <p class="auth-subtitle">Tài khoản của bạn đã được kích hoạt thành công. Bạn có thể đăng nhập ngay bây giờ.</p>
+    <div class="auth-footer mt-6">
+        <a href="/login" class="btn btn-primary">Đăng nhập</a>
+    </div>
+    {% else %}
+    <h1 class="auth-title text-danger">Kích hoạt thất bại</h1>
+    <p class="auth-subtitle">Liên kết kích hoạt không hợp lệ hoặc đã hết hạn (sau 7 ngày).</p>
+    <div class="auth-footer mt-6">
+        <a href="/register" class="btn btn-primary">Đăng ký lại</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -5,7 +5,7 @@ use axum::{
     http::{StatusCode, header},
     middleware,
     response::{IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
 };
 use dp_core::DomainError;
 use dp_db::DbError;
@@ -14,10 +14,11 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use crate::{
+    auth::RateLimiter,
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{health, home},
+    routes::{auth, health, home},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -31,6 +32,8 @@ pub struct AppState {
     pub templates: Arc<minijinja::Environment<'static>>,
     /// Asset manifest for cache-busted static files.
     pub manifest: Arc<AssetManifest>,
+    /// In-process rate limiter for authentication endpoints.
+    pub rate_limiter: Arc<RateLimiter>,
 }
 
 /// Unified error enum for the web layer.
@@ -175,6 +178,13 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", get(home::index))
         .route("/healthz", get(health::healthz))
         .route("/readyz", get(health::readyz))
+        .route(
+            "/register",
+            get(auth::register_page).post(auth::register_submit),
+        )
+        .route("/activate/{token}", get(auth::activate_account))
+        .route("/login", get(auth::login_page).post(auth::login_submit))
+        .route("/logout", post(auth::logout))
         .layer(middleware::from_fn(set_request_id))
         .with_state(state)
 }

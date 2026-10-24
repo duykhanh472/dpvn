@@ -17,6 +17,15 @@
             <nav class="nav-links">
                 <a href="/" class="nav-item">Trang chủ</a>
                 <a href="/healthz" class="nav-item">Trạng thái</a>
+                {% if user is defined and user %}
+                    <span class="user-greeting">Chào, <strong>{{ user.username }}</strong></span>
+                    <form method="post" action="/logout" class="inline-form">
+                        <button type="submit" class="nav-item nav-btn-logout">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="/login" class="nav-item">Đăng nhập</a>
+                    <a href="/register" class="nav-item nav-btn-register">Đăng ký</a>
+                {% endif %}
             </nav>
         </div>
     </header>

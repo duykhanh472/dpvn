@@ -24,6 +24,7 @@ async fn test_health_routes_return_service_unavailable_without_db() {
         config,
         templates,
         manifest,
+        rate_limiter: Arc::new(dp_web::RateLimiter::new()),
     };
 
     let app = create_router(state);

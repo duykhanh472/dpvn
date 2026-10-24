@@ -12,6 +12,12 @@ fn test_all_templates_render() {
         csrf_token => "test-csrf-token",
         status_code => 404,
         message => "Không tìm thấy trang yêu cầu.",
+        user => None::<String>,
+        error => None::<String>,
+        success => None::<String>,
+        username => "testuser",
+        email => "test@example.com",
+        real_name => "Test User",
     };
 
     let mut count = 0;

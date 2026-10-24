@@ -171,6 +171,7 @@ async fn main() -> ExitCode {
                 config: config.clone(),
                 templates,
                 manifest,
+                rate_limiter: Arc::new(dp_web::RateLimiter::new()),
             };
 
             let router = create_router(state);
@@ -212,11 +213,75 @@ async fn main() -> ExitCode {
         }
         Command::Prune => {
             println!("Running prune maintenance tasks...");
-            // Staged for Phase 2/3 scheduled jobs
+            let pool =
+                match dp_db::create_pool(&config.database.url, 1, config.database.max_connections)
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("Failed to connect to database: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                };
+
+            let sessions_count = dp_db::queries::sessions::prune_expired_sessions(&pool)
+                .await
+                .unwrap_or(0);
+            println!("Pruned {sessions_count} expired sessions.");
+
+            let users_count = dp_db::queries::users::prune_pending_users(&pool, 7)
+                .await
+                .unwrap_or(0);
+            println!("Pruned {users_count} unactivated pending users.");
+
             println!("Prune completed.");
         }
         Command::CreateAdmin { username } => {
-            println!("Creating admin user '{username}' (staged for Phase 2)...");
+            let password = std::env::var("DP_ADMIN_PASSWORD").unwrap_or_else(|_| {
+                use std::io::{self, BufRead, Write};
+                print!("Enter admin password: ");
+                let _ = io::stdout().flush();
+                let stdin = io::stdin();
+                stdin
+                    .lock()
+                    .lines()
+                    .next()
+                    .and_then(|r| r.ok())
+                    .unwrap_or_default()
+            });
+
+            if let Err(e) = dp_web::auth::validate_password(&password) {
+                eprintln!("Invalid password: {e}");
+                return ExitCode::FAILURE;
+            }
+
+            let pool =
+                match dp_db::create_pool(&config.database.url, 1, config.database.max_connections)
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("Failed to connect to database: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                };
+
+            let hash = match dp_web::auth::hash_password(password).await {
+                Ok(h) => h,
+                Err(e) => {
+                    eprintln!("Failed to hash password: {e}");
+                    return ExitCode::FAILURE;
+                }
+            };
+
+            let email = format!("{username}@example.com");
+            match dp_db::queries::users::create_admin_user(&pool, &username, &email, &hash).await {
+                Ok(id) => println!("Admin user '{username}' created with ID {id}."),
+                Err(e) => {
+                    eprintln!("Failed to create admin user: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
         }
         Command::ImportProject { zip_path } => {
             println!(

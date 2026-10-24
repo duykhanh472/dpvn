@@ -1,6 +1,9 @@
 //! Database access layer, connection pooling, and migrations.
 
 pub mod models;
+pub mod queries;
+
+pub use queries::sessions::SessionUser;
 
 use sqlx::mysql::{MySqlPool, MySqlPoolOptions};
 use std::time::Duration;

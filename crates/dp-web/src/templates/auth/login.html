@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Đăng nhập — Distributed Proofreaders VN{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <h1 class="auth-title">Đăng nhập</h1>
+    <p class="auth-subtitle">Nhập thông tin tài khoản của bạn để tiếp tục</p>
+
+    {% if error is defined and error %}
+    <div class="alert alert-error">
+        {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="post" action="/login" class="auth-form">
+        <div class="form-group">
+            <label for="username" class="form-label">Tên đăng nhập</label>
+            <input type="text" id="username" name="username" value="{{ username | default('') }}" required autofocus class="form-input">
+        </div>
+
+        <div class="form-group">
+            <label for="password" class="form-label">Mật khẩu</label>
+            <input type="password" id="password" name="password" required class="form-input">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block">Đăng nhập</button>
+    </form>
+
+    <div class="auth-footer">
+        <p>Chưa có tài khoản? <a href="/register">Đăng ký thành viên mới</a></p>
+    </div>
+</div>
+{% endblock %}
