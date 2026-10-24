@@ -1,0 +1,42 @@
+[package]
+name = "dp-web"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+default-run = "dp"
+
+[[bin]]
+name = "dp"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+dp-core = { path = "../dp-core" }
+dp-db = { path = "../dp-db" }
+sqlx = { version = "0.8", default-features = false, features = ["mysql"] }
+axum = "0.8"
+tokio = { version = "1.43", features = ["full"] }
+tower = "0.5"
+minijinja = "3.0"
+minijinja-embed = "3.0"
+lexopt = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.11", features = ["v4"] }
+http = "1.2"
+
+[build-dependencies]
+minijinja-embed = "3.0"
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
