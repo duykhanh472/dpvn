@@ -706,3 +706,236 @@ body.is-resizing .proof-split-handle {
         height: 2px;
     }
 }
+
+/* ─── Diff view (§10) ─────────────────────────────────────────────────────── */
+
+.diff-page {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.diff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.diff-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.diff-subtitle {
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.diff-page-badge {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    font-size: 0.8rem;
+}
+
+.diff-header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.diff-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+.diff-control {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.diff-control label,
+.diff-check {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.diff-control .form-input {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.875rem;
+}
+
+.diff-page-input {
+    width: 5.5rem;
+}
+
+.diff-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-bottom: 0.35rem;
+    cursor: pointer;
+}
+
+.diff-legend {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    flex-wrap: wrap;
+}
+
+.diff-legend-item del,
+.diff-legend-item ins {
+    padding: 0.05rem 0.3rem;
+    border-radius: 3px;
+}
+
+.diff-view {
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: auto;
+    background: var(--color-surface);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    line-height: 1.55;
+}
+
+.diff-columns,
+.diff-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    min-width: 640px;
+}
+
+.diff-columns {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.diff-column-head {
+    padding: 0.45rem 0.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.diff-old-head {
+    border-right: 1px solid var(--color-border);
+}
+
+.diff-row {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.diff-row:last-child {
+    border-bottom: none;
+}
+
+.diff-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.1rem 0.5rem;
+    min-height: 1.55em;
+    overflow-wrap: anywhere;
+}
+
+.diff-old {
+    border-right: 1px solid var(--color-border);
+}
+
+.diff-line-no {
+    flex: 0 0 2.75rem;
+    text-align: right;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.diff-line-text {
+    flex: 1;
+    min-width: 0;
+    white-space: pre-wrap;
+}
+
+.diff-row-delete .diff-old,
+.diff-row-replace .diff-old {
+    background: rgba(220, 38, 38, 0.08);
+}
+
+.diff-row-insert .diff-new,
+.diff-row-replace .diff-new {
+    background: rgba(22, 163, 74, 0.1);
+}
+
+.diff-old del,
+.diff-new del {
+    text-decoration: line-through;
+    opacity: 0.65;
+    background: rgba(220, 38, 38, 0.16);
+    border-radius: 2px;
+}
+
+.diff-new ins,
+.diff-old ins {
+    text-decoration: none;
+    background: rgba(22, 163, 74, 0.24);
+    border-radius: 2px;
+}
+
+.diff-row-equal .diff-cell {
+    color: var(--color-text-muted);
+}
+
+.diff-empty {
+    padding: 1.5rem 1rem;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+}
+
+.ws {
+    color: var(--color-text-muted);
+    opacity: 0.6;
+    font-size: 0.85em;
+}
+
+@media (max-width: 799px) {
+    .diff-columns,
+    .diff-row {
+        grid-template-columns: 1fr;
+        min-width: 0;
+    }
+
+    .diff-old,
+    .diff-old-head {
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+}

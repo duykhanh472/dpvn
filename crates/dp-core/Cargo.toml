@@ -15,7 +15,10 @@ serde = { version = "1.0", features = ["derive"] }
 unicode-normalization = "0.1"
 toml = "0.8"
 regex = "1.11"
+similar = "3.2.1"
+ammonia = "4.2.4"
 
 [dev-dependencies]
+insta = "1.49.0"
 proptest = "1.5"
 

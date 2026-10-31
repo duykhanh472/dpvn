@@ -1,0 +1,10 @@
+---
+source: crates/dp-core/tests/diff_snapshot_tests.rs
+expression: render_rows(&rows)
+---
+[replace] old=Some(2) new=Some(2)
+  old: một<del aria-label="đã xoá"><span class="ws">·</span></del>hai<del aria-label="đã xoá"><span class="ws">·</span></del>ba
+  new: một<ins aria-label="đã thêm"><span class="ws">·</span><span class="ws">·</span></ins>hai<ins aria-label="đã thêm"><span class="ws">·</span><span class="ws">·</span></ins>ba
+[delete] old=Some(3) new=None
+  old: <del aria-label="đã xoá">Xoá<span class="ws">·</span>dòng<span class="ws">·</span>này</del>
+  new:

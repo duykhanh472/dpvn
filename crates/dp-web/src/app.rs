@@ -20,7 +20,7 @@ use crate::{
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{auth, health, home, projects, proof, words},
+    routes::{auth, diff, health, home, projects, proof, words},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -210,6 +210,7 @@ pub fn create_router(state: AppState) -> Router {
             get(projects::new_project_page).post(projects::new_project_submit),
         )
         .route("/projects/{id}", get(projects::project_detail))
+        .route("/projects/{id}/diff", get(diff::diff_page))
         .route(
             "/projects/{id}/import",
             get(projects::import_page).post(projects::import_submit),

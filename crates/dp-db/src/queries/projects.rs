@@ -125,6 +125,7 @@ pub async fn get_project_detail(
     let row = sqlx::query_as::<_, ProjectListItem>(
         "SELECT p.id, p.name, p.author, p.phase, p.current_round, p.on_hold,
                 p.tone_style, p.charset, p.manager_id, u.username AS manager_username,
+                p.image_source, p.comments,
                 COALESCE((SELECT COUNT(*) FROM pages pg WHERE pg.project_id = p.id), 0) AS total_pages,
                 p.created_at, p.updated_at
          FROM projects p
@@ -152,6 +153,7 @@ pub async fn list_projects(
     let rows = sqlx::query_as::<_, ProjectListItem>(
         "SELECT p.id, p.name, p.author, p.phase, p.current_round, p.on_hold,
                 p.tone_style, p.charset, p.manager_id, u.username AS manager_username,
+                p.image_source, p.comments,
                 COALESCE((SELECT COUNT(*) FROM pages pg WHERE pg.project_id = p.id), 0) AS total_pages,
                 p.created_at, p.updated_at
          FROM projects p

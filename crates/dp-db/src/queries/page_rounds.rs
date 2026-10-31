@@ -599,6 +599,73 @@ pub struct ProofingPageData {
     pub ocr_text: Option<String>,
 }
 
+/// Text stored for one round of a page, used by the diff view.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct PageRevisionText {
+    /// Round identifier (e.g. "P1").
+    pub round: String,
+    /// Text saved for this round, if the round was seeded and has a value.
+    pub text: Option<String>,
+    /// Round state ("available", "in_progress", "done").
+    pub state: String,
+}
+
+/// OCR baseline plus every round revision for a single page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageDiffData {
+    /// Internal page primary key.
+    pub page_id: u64,
+    /// 1-based page sequence number.
+    pub page_number: i32,
+    /// Immutable OCR text baseline.
+    pub ocr_text: Option<String>,
+    /// Round revisions for this page, unordered; callers order by round config.
+    pub revisions: Vec<PageRevisionText>,
+}
+
+/// Load the OCR baseline and all round texts needed by the diff view.
+///
+/// Returns `Ok(None)` when the page does not exist in the project.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if a query fails.
+pub async fn get_page_diff_data(
+    pool: &MySqlPool,
+    project_id: u64,
+    page_number: i32,
+) -> Result<Option<PageDiffData>, DbError> {
+    let page: Option<(u64, i32, Option<String>)> = sqlx::query_as(
+        "SELECT id, page_number, ocr_text
+         FROM pages
+         WHERE project_id = ? AND page_number = ?",
+    )
+    .bind(project_id)
+    .bind(page_number)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some((page_id, page_number, ocr_text)) = page else {
+        return Ok(None);
+    };
+
+    let revisions = sqlx::query_as::<_, PageRevisionText>(
+        "SELECT round, text, state
+         FROM page_rounds
+         WHERE page_id = ?
+         ORDER BY round ASC",
+    )
+    .bind(page_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(Some(PageDiffData {
+        page_id,
+        page_number,
+        ocr_text,
+        revisions,
+    }))
+}
+
 /// Fetch comprehensive proofing data for a specific page number within a project.
 ///
 /// Joins `pages`, `projects`, and `page_rounds` matching the project's `current_round`.

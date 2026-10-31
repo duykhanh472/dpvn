@@ -12,6 +12,9 @@
             {% if project.phase == "in_round" and not project.on_hold %}
                 <a href="/projects/{{ project.id }}/proof" class="btn btn-primary">Bắt đầu soát lỗi &rarr;</a>
             {% endif %}
+            {% if page_count > 0 %}
+                <a href="/projects/{{ project.id }}/diff?page=1" class="btn btn-outline">So sánh văn bản</a>
+            {% endif %}
             {% if is_manager_of or is_admin %}
                 <a href="/projects/{{ project.id }}/words" class="btn btn-outline">Từ điển dự án</a>
                 {% if project.phase == "draft" %}

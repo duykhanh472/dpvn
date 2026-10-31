@@ -1,0 +1,151 @@
+---
+source: crates/dp-web/tests/template_tests.rs
+expression: html
+---
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>So sánh văn bản — Truyện Kiều — Trang 1 — DProofreaders VN</title>
+    <meta name="csrf-token" content="test-csrf-token">
+    <link rel="stylesheet" href="&#x2f;static&#x2f;css&#x2f;app.css">
+    <script defer src="&#x2f;static&#x2f;js&#x2f;htmx.min.js"></script>
+    <script defer src="&#x2f;static&#x2f;js&#x2f;app.js"></script>
+    
+</head>
+<body class="site-body">
+    <header class="site-header">
+        <div class="header-inner">
+            <a href="/" class="brand-link">DProofreaders VN</a>
+            <nav class="nav-links">
+                <a href="/" class="nav-item">Trang chủ</a>
+                <a href="/projects" class="nav-item">Dự án</a>
+                <a href="/healthz" class="nav-item">Trạng thái</a>
+                
+                    
+                    
+                        <a href="/my/projects" class="nav-item">Dự án của tôi</a>
+                    
+                    
+                    <span class="user-greeting">Chào, <strong>testuser</strong></span>
+                    <form method="post" action="/logout" class="inline-form">
+                        <button type="submit" class="nav-item nav-btn-logout">Đăng xuất</button>
+                    </form>
+                
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        
+<div class="diff-page">
+    <header class="diff-header">
+        <div class="diff-title-group">
+            <h1 class="page-title">So sánh văn bản</h1>
+            <p class="diff-subtitle">
+                <strong>Truyện Kiều</strong>
+                <span>— Nguyễn Du</span>
+                <span class="diff-page-badge">Trang 1 / 1</span>
+            </p>
+        </div>
+        <div class="diff-header-actions">
+            <a href="/projects/1" class="btn btn-sm btn-outline">&larr; Dự án</a>
+        </div>
+    </header>
+
+    <form method="get" action="/projects/1/diff" class="diff-controls" aria-label="Tùy chọn so sánh">
+        <div class="diff-control">
+            <label for="diff-page">Trang</label>
+            <input id="diff-page" class="form-input diff-page-input" type="number"
+                   name="page" min="1" max="1" value="1">
+        </div>
+
+        <div class="diff-control">
+            <label for="diff-from">Từ</label>
+            <select id="diff-from" name="from" class="form-input">
+                
+                    <option value="ocr" selected>OCR</option>
+                
+                    <option value="P1" >Vòng P1</option>
+                
+            </select>
+        </div>
+
+        <div class="diff-control">
+            <label for="diff-to">Đến</label>
+            <select id="diff-to" name="to" class="form-input">
+                
+                    <option value="ocr" >OCR</option>
+                
+                    <option value="P1" selected>Vòng P1</option>
+                
+            </select>
+        </div>
+
+        <label class="diff-check">
+            <input type="checkbox" name="changes_only" value="1" >
+            Chỉ hiện thay đổi
+        </label>
+
+        <label class="diff-check">
+            <input type="checkbox" name="whitespace" value="1" >
+            Hiện khoảng trắng
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-sm">So sánh</button>
+    </form>
+
+    
+
+    <div class="diff-legend" aria-hidden="true">
+        <span class="diff-legend-item diff-legend-del"><del>đã xoá</del></span>
+        <span class="diff-legend-item diff-legend-ins"><ins>đã thêm</ins></span>
+        <span class="diff-legend-item"><span class="ws">·</span> khoảng trắng</span>
+    </div>
+
+    <div class="diff-view" role="table" aria-label="So sánh OCR với Vòng P1 — trang 1">
+        <div class="diff-columns" role="row">
+            <div class="diff-column-head diff-old-head" role="columnheader">
+                <span class="diff-side-label">OCR</span>
+            </div>
+            <div class="diff-column-head diff-new-head" role="columnheader">
+                <span class="diff-side-label">Vòng P1</span>
+            </div>
+        </div>
+
+        
+            <div class="diff-row diff-row-equal" role="row">
+                <div class="diff-cell diff-old" role="cell">
+                    <span class="diff-line-no">1</span>
+                    <span class="diff-line-text">Dòng giữ nguyên</span>
+                </div>
+                <div class="diff-cell diff-new" role="cell">
+                    <span class="diff-line-no">1</span>
+                    <span class="diff-line-text">Dòng giữ nguyên</span>
+                </div>
+            </div>
+        
+            <div class="diff-row diff-row-replace" role="row">
+                <div class="diff-cell diff-old" role="cell">
+                    <span class="diff-line-no">2</span>
+                    <span class="diff-line-text">Tôi <del aria-label="đã xoá">nghỉ</del> học</span>
+                </div>
+                <div class="diff-cell diff-new" role="cell">
+                    <span class="diff-line-no">2</span>
+                    <span class="diff-line-text">Tôi <ins aria-label="đã thêm">nghĩ</ins> học</span>
+                </div>
+            </div>
+        
+    </div>
+</div>
+
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            Distributed Proofreaders — Dự án số hóa và soát lỗi sách tiếng Việt
+        </div>
+    </footer>
+</body>
+</html>

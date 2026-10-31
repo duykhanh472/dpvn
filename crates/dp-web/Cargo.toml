@@ -51,3 +51,4 @@ minijinja-embed = "3.0"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tempfile = "3"
+insta = "1.49.0"

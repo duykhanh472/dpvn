@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}So sánh văn bản — {{ project.name }} — Trang {{ page_number }} — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="diff-page">
+    <header class="diff-header">
+        <div class="diff-title-group">
+            <h1 class="page-title">So sánh văn bản</h1>
+            <p class="diff-subtitle">
+                <strong>{{ project.name }}</strong>
+                {% if project.author %}<span>— {{ project.author }}</span>{% endif %}
+                <span class="diff-page-badge">Trang {{ page_number }} / {{ total_pages }}</span>
+            </p>
+        </div>
+        <div class="diff-header-actions">
+            <a href="/projects/{{ project.id }}" class="btn btn-sm btn-outline">&larr; Dự án</a>
+        </div>
+    </header>
+
+    <form method="get" action="/projects/{{ project.id }}/diff" class="diff-controls" aria-label="Tùy chọn so sánh">
+        <div class="diff-control">
+            <label for="diff-page">Trang</label>
+            <input id="diff-page" class="form-input diff-page-input" type="number"
+                   name="page" min="1" max="{{ total_pages }}" value="{{ page_number }}">
+        </div>
+
+        <div class="diff-control">
+            <label for="diff-from">Từ</label>
+            <select id="diff-from" name="from" class="form-input">
+                {% for option in from_options %}
+                    <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="diff-control">
+            <label for="diff-to">Đến</label>
+            <select id="diff-to" name="to" class="form-input">
+                {% for option in to_options %}
+                    <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <label class="diff-check">
+            <input type="checkbox" name="changes_only" value="1" {% if changes_only %}checked{% endif %}>
+            Chỉ hiện thay đổi
+        </label>
+
+        <label class="diff-check">
+            <input type="checkbox" name="whitespace" value="1" {% if whitespace %}checked{% endif %}>
+            Hiện khoảng trắng
+        </label>
+
+        <button type="submit" class="btn btn-primary btn-sm">So sánh</button>
+    </form>
+
+    {% if not has_changes %}
+        <div class="info-banner" role="status">
+            <p>Hai phiên bản được chọn giống hệt nhau.</p>
+        </div>
+    {% endif %}
+
+    <div class="diff-legend" aria-hidden="true">
+        <span class="diff-legend-item diff-legend-del"><del>đã xoá</del></span>
+        <span class="diff-legend-item diff-legend-ins"><ins>đã thêm</ins></span>
+        <span class="diff-legend-item"><span class="ws">·</span> khoảng trắng</span>
+    </div>
+
+    <div class="diff-view" role="table" aria-label="So sánh {{ from_label }} với {{ to_label }} — trang {{ page_number }}">
+        <div class="diff-columns" role="row">
+            <div class="diff-column-head diff-old-head" role="columnheader">
+                <span class="diff-side-label">{{ from_label }}</span>
+            </div>
+            <div class="diff-column-head diff-new-head" role="columnheader">
+                <span class="diff-side-label">{{ to_label }}</span>
+            </div>
+        </div>
+
+        {% for row in rows %}
+            <div class="diff-row diff-row-{{ row.kind }}" role="row">
+                <div class="diff-cell diff-old" role="cell">
+                    <span class="diff-line-no">{{ row.old_line | default('', true) }}</span>
+                    <span class="diff-line-text">{{ row.old_html | safe }}</span>
+                </div>
+                <div class="diff-cell diff-new" role="cell">
+                    <span class="diff-line-no">{{ row.new_line | default('', true) }}</span>
+                    <span class="diff-line-text">{{ row.new_html | safe }}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="diff-empty" role="row">
+                <p>Không có dòng nào để hiển thị.</p>
+            </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

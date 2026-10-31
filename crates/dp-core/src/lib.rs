@@ -3,6 +3,7 @@
 //! This crate does NOT depend on axum, sqlx, tokio, or the filesystem.
 
 pub mod charset;
+pub mod diff;
 pub mod error;
 pub mod ids;
 pub mod project;
@@ -12,6 +13,7 @@ pub mod viet;
 pub mod wordcheck;
 
 pub use charset::{Charset, CharsetCatalog};
+pub use diff::{DiffOptions, DiffRow, DiffRowKind, diff_html, diff_rows};
 pub use error::DomainError;
 pub use ids::{PageId, ProjectId, UserId};
 pub use project::{Phase, ToneStyle};

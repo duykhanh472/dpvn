@@ -22,6 +22,7 @@
     <header class="proof-toolbar" role="toolbar" aria-label="Thanh công cụ soát lỗi">
         <div class="toolbar-left">
             <a href="/projects/{{ project_id }}" class="btn btn-sm btn-outline" title="Quay lại chi tiết dự án">&larr; Dự án</a>
+            <a href="/projects/{{ project_id }}/diff?page={{ page_number }}" class="btn btn-sm btn-outline" title="So sánh OCR và các vòng đã lưu">So sánh</a>
             <h1 class="proof-title">
                 <span class="proof-book-title">{{ project_name }}</span>
                 {% if author is defined and author %}

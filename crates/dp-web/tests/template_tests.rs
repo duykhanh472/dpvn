@@ -59,6 +59,38 @@ fn fixture_context() -> minijinja::Value {
         total_pages => 1u32,
         filter_kind => "",
         filter_q => "",
+        // Diff view fixture fields (§10)
+        from_label => "OCR",
+        to_label => "Vòng P1",
+        from_value => "ocr",
+        to_value => "P1",
+        from_options => vec![
+            context! { value => "ocr", label => "OCR", selected => true },
+            context! { value => "P1", label => "Vòng P1", selected => false },
+        ],
+        to_options => vec![
+            context! { value => "ocr", label => "OCR", selected => false },
+            context! { value => "P1", label => "Vòng P1", selected => true },
+        ],
+        changes_only => false,
+        whitespace => false,
+        has_changes => true,
+        rows => vec![
+            context! {
+                kind => "equal",
+                old_line => 1u32,
+                new_line => 1u32,
+                old_html => "Dòng giữ nguyên",
+                new_html => "Dòng giữ nguyên",
+            },
+            context! {
+                kind => "replace",
+                old_line => 2u32,
+                new_line => 2u32,
+                old_html => "Tôi <del aria-label=\"đã xoá\">nghỉ</del> học",
+                new_html => "Tôi <ins aria-label=\"đã thêm\">nghĩ</ins> học",
+            },
+        ],
     }
 }
 
@@ -90,4 +122,19 @@ fn test_all_templates_render() {
     }
 
     assert!(count > 0, "no templates were found to render");
+}
+
+#[test]
+fn test_diff_template_snapshot() {
+    let config = AppConfig::default();
+    let manifest = Arc::new(AssetManifest::default());
+    let env = create_template_env(&config, manifest).expect("failed to load template environment");
+    let template = env
+        .get_template("projects/diff.html")
+        .expect("diff template must be embedded");
+
+    let html = template
+        .render(fixture_context())
+        .expect("diff template must render");
+    insta::assert_snapshot!("diff_template", html);
 }

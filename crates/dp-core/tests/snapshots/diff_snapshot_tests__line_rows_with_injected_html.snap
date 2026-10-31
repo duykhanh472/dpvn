@@ -1,0 +1,13 @@
+---
+source: crates/dp-core/tests/diff_snapshot_tests.rs
+expression: render_rows(&rows)
+---
+[equal] old=Some(1) new=Some(1)
+  old: Dòng một &lt;script&gt;alert('x')&lt;/script&gt;
+  new: Dòng một &lt;script&gt;alert('x')&lt;/script&gt;
+[replace] old=Some(2) new=Some(2)
+  old: Dòng hai
+  new: Dòng hai<ins aria-label="đã thêm"> </ins><ins aria-label="đã thêm">đã</ins><ins aria-label="đã thêm"> </ins><ins aria-label="đã thêm">sửa</ins>
+[replace] old=Some(3) new=Some(3)
+  old: Dòng <del aria-label="đã xoá">ba</del>
+  new: Dòng <ins aria-label="đã thêm">bốn</ins>

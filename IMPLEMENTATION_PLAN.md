@@ -2128,12 +2128,12 @@ Each phase ends with a working, tested increment. No phase is "80% done".
 **Goal:** compare OCR and round texts.
 
 **Tasks**
-- [ ] `diff_html` with `similar`, word-level, escaped
-- [ ] Two-column render template with line context
-- [ ] `?changes_only=1`, whitespace toggle
-- [ ] Route + authorization (must be able to view the project)
-- [ ] Link from the proofing UI and project detail
-- [ ] Snapshot tests for render output
+- [x] `diff_html` with `similar`, word-level, escaped
+- [x] Two-column render template with line context
+- [x] `?changes_only=1`, whitespace toggle
+- [x] Route + authorization (must be able to view the project)
+- [x] Link from the proofing UI and project detail
+- [x] Snapshot tests for render output
 
 **Deliverable:** P2 proofers can open "what did P1 change vs OCR?"
 
