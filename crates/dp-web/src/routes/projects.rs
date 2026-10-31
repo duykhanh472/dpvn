@@ -4,17 +4,21 @@ use std::str::FromStr;
 
 use axum::{
     Form,
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
+    http::HeaderMap,
     response::{IntoResponse, Redirect, Response},
 };
-use dp_core::{ActorRole, Phase, UserId, round::RoundsConfig};
+use dp_core::{ActorRole, Phase, RoundsConfig, UserId};
+use dp_db::DbError;
 use dp_db::queries::{
+    comments::{count_project_comments, list_project_comments},
     page_rounds::{claim_next_available_page, get_user_active_claim},
-    page_tallies::check_daily_limit,
-    pages::count_pages_by_project_id,
+    page_tallies::{check_daily_limit, current_vietnam_date, get_total_daily_tally},
+    project_events::list_project_events_with_actors,
     projects::{
-        NewProject, create_project, get_project_by_id, get_project_detail, list_projects,
-        toggle_project_hold, transition_project,
+        NewProject, ProjectListFilter, count_projects_filtered, create_project, get_project_by_id,
+        get_project_detail, get_project_progress, list_projects_filtered, toggle_project_hold,
+        transition_project,
     },
 };
 use serde::Deserialize;
@@ -23,6 +27,7 @@ use tracing::instrument;
 use crate::{
     AppError, AppState,
     auth::{AuthUser, ManagerUser, verify_csrf_token},
+    format_vietnam_time,
     ingest::{self, preview::IngestPreview},
 };
 
@@ -105,18 +110,80 @@ pub async fn new_project_submit(
 
 // ─── Project detail ───────────────────────────────────────────────────────────
 
-/// `GET /projects/{id}` — project detail page.
-#[instrument(skip(state), fields(project_id = id))]
+/// Query parameters accepted by the project detail page.
+#[derive(Debug, Default, Deserialize)]
+pub struct ProjectDetailQuery {
+    /// Optional notice code (e.g. `limit_reached`, `no_pages`).
+    pub notice: Option<String>,
+    /// Legacy empty-pool flag from the proof entry redirect.
+    pub empty: Option<String>,
+}
+
+/// `GET /projects/{id}` — project detail page with progress, events and comments.
+#[instrument(skip(state, auth), fields(project_id = id))]
 pub async fn project_detail(
     auth: AuthUser,
     State(state): State<AppState>,
     Path(id): Path<u64>,
+    Query(query): Query<ProjectDetailQuery>,
 ) -> Result<Response, AppError> {
     let project = get_project_detail(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
 
-    let page_count = count_pages_by_project_id(&state.db, id).await?;
+    let progress = get_project_progress(&state.db, id, project.current_round.as_deref()).await?;
+    let daily_tally =
+        get_total_daily_tally(&state.db, auth.user_id.0, current_vietnam_date()).await?;
+    let daily_limit = state.config.limits.daily_pages;
+    let limit_reached = daily_tally >= daily_limit;
+
+    let notice = match (query.notice.as_deref(), query.empty.as_deref()) {
+        (Some("limit_reached"), _) => Some(format!(
+            "Bạn đã đạt giới hạn {daily_limit} trang trong ngày. Giới hạn sẽ được đặt lại vào 00:00 giờ Việt Nam."
+        )),
+        (Some("no_pages"), _) | (_, Some("1")) => Some(
+            "Hiện không còn trang nào phù hợp để bạn soát trong vòng này. Hãy quay lại sau hoặc chọn dự án khác."
+                .to_string(),
+        ),
+        _ => None,
+    };
+
+    let can_manage = project.manager_id == auth.user_id.0 || auth.has_role("admin");
+
+    let comments = list_project_comments(&state.db, id, 50, 0).await?;
+    let comment_count = count_project_comments(&state.db, id).await?;
+    let comment_ctx: Vec<_> = comments
+        .iter()
+        .map(|comment| {
+            minijinja::context! {
+                id => comment.id,
+                body_html => comment.body_html.clone(),
+                author_username => comment.author_username.clone(),
+                created_at_label => format_vietnam_time(comment.created_at, "%d/%m/%Y %H:%M"),
+            }
+        })
+        .collect();
+
+    // Plan Q6: the audit log is visible to managers and admins only.
+    let events = if can_manage {
+        list_project_events_with_actors(&state.db, id, 20).await?
+    } else {
+        Vec::new()
+    };
+    let event_ctx: Vec<_> = events
+        .iter()
+        .map(|event| {
+            minijinja::context! {
+                from_phase => event.from_phase.clone(),
+                to_phase => event.to_phase.clone(),
+                from_round => event.from_round.clone(),
+                to_round => event.to_round.clone(),
+                actor_username => event.actor_username.clone().unwrap_or_else(|| "Hệ thống".to_string()),
+                note => event.note.clone(),
+                created_at_label => format_vietnam_time(event.created_at, "%d/%m/%Y %H:%M"),
+            }
+        })
+        .collect();
 
     let tmpl = state.templates.get_template("projects/detail.html")?;
     let ctx = minijinja::context! {
@@ -136,10 +203,30 @@ pub async fn project_detail(
             charset => project.charset.clone(),
             manager_id => project.manager_id,
             manager_username => project.manager_username.clone(),
+            image_source => project.image_source.clone(),
+            comments => project.comments.clone(),
             created_at => project.created_at.to_rfc3339(),
             updated_at => project.updated_at.to_rfc3339(),
+            created_at_label => format_vietnam_time(project.created_at, "%d/%m/%Y"),
+            updated_at_label => format_vietnam_time(project.updated_at, "%d/%m/%Y %H:%M"),
         },
-        page_count,
+        progress => minijinja::context! {
+            total_pages => progress.total_pages,
+            available_pages => progress.available_pages,
+            in_progress_pages => progress.in_progress_pages,
+            done_pages => progress.done_pages,
+            percent => progress.percent,
+        },
+        page_count => progress.total_pages,
+        comments => comment_ctx,
+        comment_count => comment_count,
+        events => event_ctx,
+        can_view_events => can_manage,
+        can_manage => can_manage,
+        daily_tally => daily_tally,
+        daily_limit => daily_limit,
+        limit_reached => limit_reached,
+        notice => notice.unwrap_or_default(),
     };
     Ok(axum::response::Html(tmpl.render(ctx)?).into_response())
 }
@@ -334,63 +421,364 @@ pub async fn import_submit(
 
 // ─── Project list ─────────────────────────────────────────────────────────────
 
-/// `GET /projects` — list of available projects.
-#[instrument(skip(state))]
-pub async fn project_list(
-    auth: AuthUser,
-    State(state): State<AppState>,
-) -> Result<Response, AppError> {
-    let projects = list_projects(&state.db, None, None, 50, 0).await?;
+/// Supported page sizes for the project list.
+const PER_PAGE_OPTIONS: [u32; 4] = [10, 25, 50, 100];
+/// Default page size.
+const DEFAULT_PER_PAGE: u32 = 25;
+/// Hard cap on page size (§13.2, Phase 8 acceptance).
+const MAX_PER_PAGE: u32 = 100;
 
-    let tmpl = state.templates.get_template("projects/list.html")?;
+/// Query parameters for the project list (filters are shareable via URL).
+#[derive(Debug, Default, Deserialize)]
+pub struct ProjectListQuery {
+    /// Round filter (`P1`, `P2`, …) or `all`.
+    pub round: Option<String>,
+    /// Availability filter (`available`, `in_progress`, `complete`, `finished`, `all`).
+    pub availability: Option<String>,
+    /// Sort key (`recent`, `created`, `name`, `pages`, `pages_asc`).
+    pub sort: Option<String>,
+    /// Page number, 1-based.
+    pub page: Option<u32>,
+    /// Page size, capped at [`MAX_PER_PAGE`].
+    pub per: Option<u32>,
+    /// Substring search over project name and author.
+    pub q: Option<String>,
+}
+
+/// Which project list is being rendered.
+#[derive(Debug, Clone, Copy)]
+struct ListMode {
+    base_path: &'static str,
+    my_projects: bool,
+    default_availability: &'static str,
+}
+
+/// Percent-encode a query string component (RFC 3986 unreserved set).
+fn encode_component(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(byte as char);
+            }
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+    out
+}
+
+/// Build a project-list URL preserving every active filter.
+fn list_url(
+    base_path: &str,
+    availability: &str,
+    round: Option<&str>,
+    sort: &str,
+    search: Option<&str>,
+    per: u32,
+    page: u32,
+) -> String {
+    let mut url = format!(
+        "{base_path}?availability={}&sort={}&per={per}&page={page}",
+        encode_component(availability),
+        encode_component(sort),
+    );
+    if let Some(round) = round {
+        url.push_str("&round=");
+        url.push_str(&encode_component(round));
+    }
+    if let Some(search) = search {
+        url.push_str("&q=");
+        url.push_str(&encode_component(search));
+    }
+    url
+}
+
+/// Render the project list (full page or HTMX results fragment).
+async fn render_project_list(
+    auth: AuthUser,
+    state: &AppState,
+    query: ProjectListQuery,
+    mode: ListMode,
+    headers: &HeaderMap,
+) -> Result<Response, AppError> {
+    let rounds_config = RoundsConfig::default_embedded();
+
+    // ── Normalize filters ────────────────────────────────────────────────────
+    let availability = query
+        .availability
+        .as_deref()
+        .unwrap_or(mode.default_availability);
+    let availability = match availability {
+        "available" | "in_progress" | "complete" | "finished" | "all" => availability,
+        _ => mode.default_availability,
+    };
+    let sort = query.sort.as_deref().unwrap_or("recent");
+    let sort = match sort {
+        "created" | "name" | "pages" | "pages_asc" | "recent" => sort,
+        _ => "recent",
+    };
+
+    let round_raw = query
+        .round
+        .as_deref()
+        .map(str::trim)
+        .filter(|r| !r.is_empty() && *r != "all");
+    let round = round_raw.filter(|r| {
+        rounds_config
+            .rounds
+            .iter()
+            .any(|candidate| candidate.enabled && candidate.id.as_str() == *r)
+    });
+    let round = round.map(str::to_owned);
+
+    let search_normalized = query
+        .q
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(dp_core::viet::normalize);
+    let search = search_normalized.as_deref();
+
+    let per = query.per.unwrap_or(DEFAULT_PER_PAGE).clamp(1, MAX_PER_PAGE);
+    let requested_page = query.page.unwrap_or(1).max(1);
+
+    // ── Count first so the page number can be clamped (no off-by-one). ───────
+    let count_filter = ProjectListFilter {
+        manager_id: mode.my_projects.then_some(auth.user_id.0),
+        round: round.as_deref(),
+        availability: (availability != "all").then_some(availability),
+        search,
+        sort,
+        limit: 0,
+        offset: 0,
+    };
+    let total_count = count_projects_filtered(&state.db, &count_filter).await?;
+
+    let total_pages_count = if total_count == 0 {
+        1
+    } else {
+        ((total_count + i64::from(per) - 1) / i64::from(per)) as u32
+    };
+    let page = requested_page.min(total_pages_count);
+    let offset = (page - 1) * per;
+
+    let filter = ProjectListFilter {
+        limit: per,
+        offset,
+        ..count_filter
+    };
+    let projects = list_projects_filtered(&state.db, &filter).await?;
+
+    // ── Shared context fragments ─────────────────────────────────────────────
+    let project_ctx: Vec<_> = projects
+        .iter()
+        .map(|project| {
+            minijinja::context! {
+                id => project.id,
+                name => project.name.clone(),
+                author => project.author.clone(),
+                phase => project.phase.clone(),
+                current_round => project.current_round.clone(),
+                on_hold => project.on_hold,
+                tone_style => project.tone_style.clone(),
+                manager_username => project.manager_username.clone(),
+                total_pages => project.total_pages,
+                available_pages => project.available_pages,
+                in_progress_pages => project.in_progress_pages,
+                done_pages => project.done_pages,
+                created_at => project.created_at.to_rfc3339(),
+                created_at_label => format_vietnam_time(project.created_at, "%d/%m/%Y"),
+                updated_at_label => format_vietnam_time(project.updated_at, "%d/%m/%Y %H:%M"),
+            }
+        })
+        .collect();
+
+    let round_options: Vec<_> = std::iter::once(minijinja::context! {
+        value => "all",
+        label => "Tất cả các vòng",
+        selected => round.is_none(),
+    })
+    .chain(rounds_config.rounds.iter().filter(|r| r.enabled).map(|r| {
+        minijinja::context! {
+            value => r.id.as_str(),
+            label => format!("Vòng {}", r.id),
+            selected => round.as_deref() == Some(r.id.as_str()),
+        }
+    }))
+    .collect();
+
+    let availability_options: Vec<_> = [
+        ("available", "Có trang chờ soát"),
+        ("in_progress", "Đang có người soát"),
+        ("complete", "Đã soát xong vòng hiện tại"),
+        ("finished", "Đã hoàn thành"),
+        ("all", "Tất cả trạng thái"),
+    ]
+    .into_iter()
+    .map(|(value, label)| {
+        minijinja::context! {
+            value => value,
+            label => label,
+            selected => availability == value,
+        }
+    })
+    .collect();
+
+    let sort_options: Vec<_> = [
+        ("recent", "Cập nhật gần đây"),
+        ("created", "Mới tạo gần đây"),
+        ("name", "Tên A–Z"),
+        ("pages", "Nhiều trang trước"),
+        ("pages_asc", "Ít trang trước"),
+    ]
+    .into_iter()
+    .map(|(value, label)| {
+        minijinja::context! {
+            value => value,
+            label => label,
+            selected => sort == value,
+        }
+    })
+    .collect();
+
+    let per_options: Vec<_> = PER_PAGE_OPTIONS
+        .into_iter()
+        .map(|value| {
+            minijinja::context! {
+                value => value,
+                label => format!("{value} / trang"),
+                selected => per == value,
+            }
+        })
+        .collect();
+
+    let previous_url = (page > 1).then(|| {
+        list_url(
+            mode.base_path,
+            availability,
+            round.as_deref(),
+            sort,
+            search,
+            per,
+            page - 1,
+        )
+    });
+    let next_url = (page < total_pages_count).then(|| {
+        list_url(
+            mode.base_path,
+            availability,
+            round.as_deref(),
+            sort,
+            search,
+            per,
+            page + 1,
+        )
+    });
+
+    let mut page_links = Vec::new();
+    let window_start = page.saturating_sub(2).max(1);
+    let window_end = (window_start + 4).min(total_pages_count);
+    let window_start = window_end.saturating_sub(4).max(1);
+    for number in window_start..=window_end {
+        page_links.push(minijinja::context! {
+            number => number,
+            url => list_url(mode.base_path, availability, round.as_deref(), sort, search, per, number),
+            current => number == page,
+        });
+    }
+
+    let daily_tally =
+        get_total_daily_tally(&state.db, auth.user_id.0, current_vietnam_date()).await?;
+    let daily_limit = state.config.limits.daily_pages;
+
     let ctx = minijinja::context! {
         user => minijinja::context! {
             username => auth.username.clone(),
             roles => auth.roles.clone(),
         },
         csrf_token => auth.csrf_token.clone(),
-        projects => projects.iter().map(|p| minijinja::context! {
-            id => p.id,
-            name => p.name.clone(),
-            author => p.author.clone(),
-            phase => p.phase.clone(),
-            current_round => p.current_round.clone(),
-            manager_username => p.manager_username.clone(),
-            total_pages => p.total_pages,
-            created_at => p.created_at.to_rfc3339(),
-        }).collect::<Vec<_>>(),
+        projects => project_ctx,
+        my_projects => mode.my_projects,
+        base_path => mode.base_path,
+        round_options => round_options,
+        availability_options => availability_options,
+        sort_options => sort_options,
+        per_options => per_options,
+        filter_round => round.as_deref().unwrap_or("all"),
+        filter_availability => availability,
+        filter_sort => sort,
+        filter_q => search.unwrap_or(""),
+        current_page => page,
+        per_page => per,
+        total_count => total_count,
+        total_pages_count => total_pages_count,
+        has_previous => previous_url.is_some(),
+        has_next => next_url.is_some(),
+        previous_url => previous_url.unwrap_or_default(),
+        next_url => next_url.unwrap_or_default(),
+        page_links => page_links,
+        daily_tally => daily_tally,
+        daily_limit => daily_limit,
+        limit_reached => daily_tally >= daily_limit,
     };
+
+    let is_htmx = headers
+        .get("HX-Request")
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.eq_ignore_ascii_case("true"));
+
+    let template_name = if is_htmx {
+        "projects/_list_results.html"
+    } else {
+        "projects/list.html"
+    };
+    let tmpl = state.templates.get_template(template_name)?;
     Ok(axum::response::Html(tmpl.render(ctx)?).into_response())
 }
 
+/// `GET /projects` — list of available projects with filters and pagination.
+#[instrument(skip(state, auth, headers))]
+pub async fn project_list(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Query(query): Query<ProjectListQuery>,
+    headers: HeaderMap,
+) -> Result<Response, AppError> {
+    render_project_list(
+        auth,
+        &state,
+        query,
+        ListMode {
+            base_path: "/projects",
+            my_projects: false,
+            default_availability: "available",
+        },
+        &headers,
+    )
+    .await
+}
+
 /// `GET /my/projects` — projects managed by the current user.
-#[instrument(skip(state))]
+#[instrument(skip(state, manager, headers))]
 pub async fn my_projects(
     manager: ManagerUser,
     State(state): State<AppState>,
+    Query(query): Query<ProjectListQuery>,
+    headers: HeaderMap,
 ) -> Result<Response, AppError> {
-    let projects = list_projects(&state.db, None, Some(manager.0.user_id.0), 50, 0).await?;
-
-    let tmpl = state.templates.get_template("projects/list.html")?;
-    let ctx = minijinja::context! {
-        user => minijinja::context! {
-            username => manager.0.username.clone(),
-            roles => manager.0.roles.clone(),
+    render_project_list(
+        manager.0,
+        &state,
+        query,
+        ListMode {
+            base_path: "/my/projects",
+            my_projects: true,
+            default_availability: "all",
         },
-        csrf_token => manager.0.csrf_token.clone(),
-        projects => projects.iter().map(|p| minijinja::context! {
-            id => p.id,
-            name => p.name.clone(),
-            author => p.author.clone(),
-            phase => p.phase.clone(),
-            current_round => p.current_round.clone(),
-            manager_username => p.manager_username.clone(),
-            total_pages => p.total_pages,
-            created_at => p.created_at.to_rfc3339(),
-        }).collect::<Vec<_>>(),
-        my_projects => true,
-    };
-    Ok(axum::response::Html(tmpl.render(ctx)?).into_response())
+        &headers,
+    )
+    .await
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -552,13 +940,21 @@ pub async fn project_claim_submit(
         return Err(AppError::Forbidden);
     }
 
-    // Check daily limit
-    check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await?;
+    // Check daily limit; send the user back with a clear, actionable message.
+    match check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await {
+        Ok(()) => {}
+        Err(DbError::Domain(dp_core::DomainError::DailyLimitReached { .. })) => {
+            return Ok(
+                Redirect::to(&format!("/projects/{id}?notice=limit_reached")).into_response(),
+            );
+        }
+        Err(err) => return Err(err.into()),
+    }
 
     // Check if user already holds a page in progress
     if let Some(active) = get_user_active_claim(&state.db, auth.user_id.0).await? {
         return Ok(Redirect::to(&format!(
-            "/projects/{}/proof/{}",
+            "/projects/{}/pages/{}",
             active.project_id, active.page_number
         ))
         .into_response());
@@ -599,8 +995,8 @@ pub async fn project_claim_submit(
 
     match claimed {
         Some(page) => {
-            Ok(Redirect::to(&format!("/projects/{id}/proof/{}", page.page_number)).into_response())
+            Ok(Redirect::to(&format!("/projects/{id}/pages/{}", page.page_number)).into_response())
         }
-        None => Ok(Redirect::to(&format!("/projects/{id}")).into_response()),
+        None => Ok(Redirect::to(&format!("/projects/{id}?notice=no_pages")).into_response()),
     }
 }

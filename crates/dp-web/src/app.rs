@@ -7,6 +7,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use chrono::{DateTime, FixedOffset, Utc};
 use dp_core::DomainError;
 use dp_db::DbError;
 use sqlx::MySqlPool;
@@ -20,7 +21,7 @@ use crate::{
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{auth, diff, health, home, projects, proof, words},
+    routes::{auth, comments, diff, health, home, projects, proof, words},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -160,6 +161,19 @@ impl IntoResponse for AppError {
     }
 }
 
+/// Format a stored UTC timestamp for display in the `Asia/Ho_Chi_Minh` zone.
+///
+/// Vietnam is fixed at UTC+7 with no daylight saving time, so a fixed offset is
+/// sufficient. Storage remains UTC; only presentation is localized (§8.8).
+#[must_use]
+pub fn format_vietnam_time(timestamp: DateTime<Utc>, format: &str) -> String {
+    match FixedOffset::east_opt(7 * 3600) {
+        Some(offset) => timestamp.with_timezone(&offset).format(format).to_string(),
+        // UTC+7 is always representable; this fallback keeps the helper total.
+        None => timestamp.format(format).to_string(),
+    }
+}
+
 /// Create and configure the MiniJinja template environment.
 ///
 /// # Errors
@@ -175,6 +189,28 @@ pub fn create_template_env(
     let manifest_clone = manifest.clone();
     env.add_function("asset_url", move |name: &str| -> String {
         manifest_clone.resolve(name)
+    });
+
+    // Human-readable Vietnamese labels for domain values (§2 D2: no i18n layer).
+    env.add_filter("phase_label", |phase: Option<String>| -> String {
+        match phase.as_deref() {
+            Some("draft") => "Bản nháp",
+            Some("queued") => "Đang chờ",
+            Some("in_round") => "Đang soát lỗi",
+            Some("post_processing") => "Hậu xử lý",
+            Some("posted") => "Đã đăng",
+            Some("archived") => "Lưu trữ",
+            None => "—",
+            Some(_) => "Không rõ",
+        }
+        .to_string()
+    });
+    env.add_filter("round_label", |round: String| -> String {
+        if round.is_empty() {
+            "—".to_string()
+        } else {
+            format!("Vòng {round}")
+        }
     });
 
     if config.dev_mode {
@@ -210,6 +246,10 @@ pub fn create_router(state: AppState) -> Router {
             get(projects::new_project_page).post(projects::new_project_submit),
         )
         .route("/projects/{id}", get(projects::project_detail))
+        .route(
+            "/projects/{id}/comments",
+            post(comments::project_comment_submit),
+        )
         .route("/projects/{id}/diff", get(diff::diff_page))
         .route(
             "/projects/{id}/import",

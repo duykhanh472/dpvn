@@ -2149,13 +2149,13 @@ Each phase ends with a working, tested increment. No phase is "80% done".
 **Goal:** the site is navigable and social.
 
 **Tasks**
-- [ ] Project list with filters (round, availability, sort)
-- [ ] Pagination (HTMX)
-- [ ] Project detail: metadata, progress, event log
-- [ ] Comments: post, render (`pulldown-cmark` + `ammonia`), HTMX append
-- [ ] "My projects" for PMs
-- [ ] Daily limit UI + clear blocked-state messaging
-- [ ] Empty states and Vietnamese copy pass
+- [x] Project list with filters (round, availability, sort)
+- [x] Pagination (HTMX)
+- [x] Project detail: metadata, progress, event log
+- [x] Comments: post, render (`pulldown-cmark` + `ammonia`), HTMX append
+- [x] "My projects" for PMs
+- [x] Daily limit UI + clear blocked-state messaging
+- [x] Empty states and Vietnamese copy pass
 
 **Deliverable:** a proofer can find work without a link from a developer.
 

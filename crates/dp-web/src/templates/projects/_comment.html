@@ -1,0 +1,7 @@
+<article class="comment-item" id="comment-{{ comment.id }}">
+    <header class="comment-header">
+        <strong class="comment-author">{{ comment.author_username }}</strong>
+        <time class="comment-time">{{ comment.created_at_label }}</time>
+    </header>
+    <div class="comment-body">{{ comment.body_html | safe }}</div>
+</article>

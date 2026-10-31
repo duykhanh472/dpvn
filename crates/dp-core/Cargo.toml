@@ -17,6 +17,7 @@ toml = "0.8"
 regex = "1.11"
 similar = "3.2.1"
 ammonia = "4.2.4"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 
 [dev-dependencies]
 insta = "1.49.0"

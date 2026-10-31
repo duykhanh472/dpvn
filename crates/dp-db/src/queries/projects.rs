@@ -8,7 +8,7 @@ use dp_core::{
     round::RoundsConfig, toggle_on_hold,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, MySql, MySqlPool, Transaction};
+use sqlx::{FromRow, MySql, MySqlPool, QueryBuilder, Transaction};
 
 use crate::DbError;
 use crate::models::Project;
@@ -61,6 +61,12 @@ pub struct ProjectListItem {
     pub comments: String,
     /// Total number of pages imported into this project.
     pub total_pages: i64,
+    /// Unclaimed pages in the active round.
+    pub available_pages: i64,
+    /// Pages currently claimed in the active round.
+    pub in_progress_pages: i64,
+    /// Pages completed in the active round.
+    pub done_pages: i64,
     /// Creation timestamp.
     pub created_at: DateTime<Utc>,
     /// Last update timestamp.
@@ -127,6 +133,21 @@ pub async fn get_project_detail(
                 p.tone_style, p.charset, p.manager_id, u.username AS manager_username,
                 p.image_source, p.comments,
                 COALESCE((SELECT COUNT(*) FROM pages pg WHERE pg.project_id = p.id), 0) AS total_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'available'), 0) AS available_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'in_progress'), 0) AS in_progress_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'done'), 0) AS done_pages,
                 p.created_at, p.updated_at
          FROM projects p
          JOIN users u ON u.id = p.manager_id
@@ -139,40 +160,251 @@ pub async fn get_project_detail(
     Ok(row)
 }
 
-/// List projects with optional phase and manager filters.
+/// Filter and sort options for the project list (§13.1, Phase 8).
+#[derive(Debug, Clone, Default)]
+pub struct ProjectListFilter<'a> {
+    /// Restrict to projects managed by this user ("my projects").
+    pub manager_id: Option<u64>,
+    /// Restrict to projects whose current round matches.
+    pub round: Option<&'a str>,
+    /// `available`, `in_progress`, `complete`, or `finished`.
+    pub availability: Option<&'a str>,
+    /// Case/accent-sensitive substring match on name or author.
+    pub search: Option<&'a str>,
+    /// Ordering key (`recent`, `created`, `name`, `pages`, `pages_asc`).
+    pub sort: &'a str,
+    /// Page size, already capped by the caller.
+    pub limit: u32,
+    /// Row offset.
+    pub offset: u32,
+}
+
+/// Escape `LIKE` wildcards using `!` as the escape character.
+fn like_pattern(input: &str) -> String {
+    let mut pattern = String::with_capacity(input.len() + 2);
+    pattern.push('%');
+    for ch in input.chars() {
+        if matches!(ch, '%' | '_' | '!') {
+            pattern.push('!');
+        }
+        pattern.push(ch);
+    }
+    pattern.push('%');
+    pattern
+}
+
+/// Append the shared `WHERE` predicates for [`list_projects_filtered`] and
+/// [`count_projects_filtered`].
+fn push_project_filters(qb: &mut QueryBuilder<'_, MySql>, filter: &ProjectListFilter<'_>) {
+    if let Some(manager_id) = filter.manager_id {
+        qb.push(" AND p.manager_id = ").push_bind(manager_id);
+    }
+
+    if let Some(round) = filter.round {
+        qb.push(" AND p.current_round = ")
+            .push_bind(round.to_owned());
+    }
+
+    match filter.availability {
+        Some("available") => {
+            qb.push(
+                " AND p.phase = 'in_round' AND p.on_hold = 0
+                  AND EXISTS (
+                    SELECT 1 FROM page_rounds pr_av
+                    JOIN pages pg_av ON pg_av.id = pr_av.page_id
+                    WHERE pg_av.project_id = p.id
+                      AND pr_av.round = p.current_round
+                      AND pr_av.state = 'available'
+                  )",
+            );
+        }
+        Some("in_progress") => {
+            qb.push(
+                " AND p.phase = 'in_round'
+                  AND EXISTS (
+                    SELECT 1 FROM page_rounds pr_ip
+                    JOIN pages pg_ip ON pg_ip.id = pr_ip.page_id
+                    WHERE pg_ip.project_id = p.id
+                      AND pr_ip.round = p.current_round
+                      AND pr_ip.state = 'in_progress'
+                  )",
+            );
+        }
+        Some("complete") => {
+            qb.push(
+                " AND p.phase = 'in_round'
+                  AND EXISTS (
+                    SELECT 1 FROM page_rounds pr_cp
+                    JOIN pages pg_cp ON pg_cp.id = pr_cp.page_id
+                    WHERE pg_cp.project_id = p.id
+                      AND pr_cp.round = p.current_round
+                      AND pr_cp.state = 'done'
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM page_rounds pr_cp
+                    JOIN pages pg_cp ON pg_cp.id = pr_cp.page_id
+                    WHERE pg_cp.project_id = p.id
+                      AND pr_cp.round = p.current_round
+                      AND pr_cp.state <> 'done'
+                  )",
+            );
+        }
+        Some("finished") => {
+            qb.push(" AND p.phase IN ('post_processing', 'posted', 'archived')");
+        }
+        _ => {}
+    }
+
+    if let Some(search) = filter.search {
+        let pattern = like_pattern(search);
+        qb.push(" AND (p.name LIKE ")
+            .push_bind(pattern.clone())
+            .push(" ESCAPE '!' OR p.author LIKE ")
+            .push_bind(pattern)
+            .push(" ESCAPE '!')");
+    }
+}
+
+/// Map a user-supplied sort key to a static `ORDER BY` clause.
+///
+/// Only whitelisted names are interpolated, so the value can never inject SQL.
+fn project_order_clause(sort: &str) -> &'static str {
+    match sort {
+        "created" => "p.created_at DESC, p.id DESC",
+        "name" => "p.name ASC, p.id ASC",
+        "pages" => "total_pages DESC, p.name ASC",
+        "pages_asc" => "total_pages ASC, p.name ASC",
+        _ => "p.updated_at DESC, p.id DESC",
+    }
+}
+
+/// List projects matching `filter`, ordered and paginated.
 ///
 /// # Errors
-/// Returns [`DbError::Sqlx`] if database query fails.
-pub async fn list_projects(
+/// Returns [`DbError::Sqlx`] if the query fails.
+pub async fn list_projects_filtered(
     pool: &MySqlPool,
-    phase: Option<&str>,
-    manager_id: Option<u64>,
-    limit: u32,
-    offset: u32,
+    filter: &ProjectListFilter<'_>,
 ) -> Result<Vec<ProjectListItem>, DbError> {
-    let rows = sqlx::query_as::<_, ProjectListItem>(
+    let mut qb = QueryBuilder::new(
         "SELECT p.id, p.name, p.author, p.phase, p.current_round, p.on_hold,
                 p.tone_style, p.charset, p.manager_id, u.username AS manager_username,
                 p.image_source, p.comments,
                 COALESCE((SELECT COUNT(*) FROM pages pg WHERE pg.project_id = p.id), 0) AS total_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'available'), 0) AS available_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'in_progress'), 0) AS in_progress_pages,
+                COALESCE((SELECT COUNT(*) FROM page_rounds pr
+                          JOIN pages pg ON pg.id = pr.page_id
+                          WHERE pg.project_id = p.id
+                            AND pr.round = p.current_round
+                            AND pr.state = 'done'), 0) AS done_pages,
                 p.created_at, p.updated_at
          FROM projects p
          JOIN users u ON u.id = p.manager_id
-         WHERE (? IS NULL OR p.phase = ?)
-           AND (? IS NULL OR p.manager_id = ?)
-         ORDER BY p.updated_at DESC
-         LIMIT ? OFFSET ?",
+         WHERE 1 = 1",
+    );
+    push_project_filters(&mut qb, filter);
+    qb.push(" ORDER BY ")
+        .push(project_order_clause(filter.sort))
+        .push(" LIMIT ")
+        .push_bind(filter.limit)
+        .push(" OFFSET ")
+        .push_bind(filter.offset);
+
+    let rows = qb
+        .build_query_as::<ProjectListItem>()
+        .fetch_all(pool)
+        .await?;
+    Ok(rows)
+}
+
+/// Count projects matching `filter`, ignoring pagination.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if the query fails.
+pub async fn count_projects_filtered(
+    pool: &MySqlPool,
+    filter: &ProjectListFilter<'_>,
+) -> Result<i64, DbError> {
+    let mut qb = QueryBuilder::new("SELECT COUNT(*) FROM projects p WHERE 1 = 1");
+    push_project_filters(&mut qb, filter);
+
+    let count: i64 = qb.build_query_scalar::<i64>().fetch_one(pool).await?;
+    Ok(count)
+}
+
+/// Completion progress for a project's active round.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectProgress {
+    /// Total pages in the project.
+    pub total_pages: i64,
+    /// Unclaimed pages in the active round.
+    pub available_pages: i64,
+    /// Claimed pages in the active round.
+    pub in_progress_pages: i64,
+    /// Completed pages in the active round.
+    pub done_pages: i64,
+    /// Completion percentage, 0–100.
+    pub percent: u32,
+}
+
+/// Compute round completion counts for a project.
+///
+/// When `round` is `None` (draft or between rounds), the round counts are zero
+/// while `total_pages` still reflects the imported page count.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if the query fails.
+pub async fn get_project_progress(
+    pool: &MySqlPool,
+    project_id: u64,
+    round: Option<&str>,
+) -> Result<ProjectProgress, DbError> {
+    #[derive(FromRow)]
+    struct RawProgress {
+        total_pages: i64,
+        available_pages: i64,
+        in_progress_pages: i64,
+        done_pages: i64,
+    }
+
+    let row = sqlx::query_as::<_, RawProgress>(
+        "SELECT COUNT(*) AS total_pages,
+                CAST(COALESCE(SUM(CASE WHEN pr.state = 'available' THEN 1 ELSE 0 END), 0) AS SIGNED) AS available_pages,
+                CAST(COALESCE(SUM(CASE WHEN pr.state = 'in_progress' THEN 1 ELSE 0 END), 0) AS SIGNED) AS in_progress_pages,
+                CAST(COALESCE(SUM(CASE WHEN pr.state = 'done' THEN 1 ELSE 0 END), 0) AS SIGNED) AS done_pages
+         FROM pages p
+         LEFT JOIN page_rounds pr
+                ON pr.page_id = p.id
+               AND pr.round = ?
+         WHERE p.project_id = ?",
     )
-    .bind(phase)
-    .bind(phase)
-    .bind(manager_id)
-    .bind(manager_id)
-    .bind(limit)
-    .bind(offset)
-    .fetch_all(pool)
+    .bind(round.unwrap_or(""))
+    .bind(project_id)
+    .fetch_one(pool)
     .await?;
 
-    Ok(rows)
+    let percent = if row.total_pages > 0 {
+        ((row.done_pages.max(0) as u64 * 100) / row.total_pages as u64) as u32
+    } else {
+        0
+    };
+
+    Ok(ProjectProgress {
+        total_pages: row.total_pages,
+        available_pages: row.available_pages,
+        in_progress_pages: row.in_progress_pages,
+        done_pages: row.done_pages,
+        percent,
+    })
 }
 
 /// DTO for updating project metadata fields.

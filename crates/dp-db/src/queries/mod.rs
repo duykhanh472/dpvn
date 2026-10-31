@@ -1,5 +1,6 @@
 //! Domain database query modules.
 
+pub mod comments;
 pub mod page_rounds;
 pub mod page_tallies;
 pub mod pages;

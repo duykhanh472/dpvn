@@ -1,0 +1,108 @@
+<div id="project-results" class="results-region" aria-live="polite">
+    <p class="results-summary">
+        {% if total_count == 0 %}
+            Không tìm thấy dự án phù hợp.
+        {% else %}
+            Hiển thị {{ projects | length }} trong {{ total_count }} dự án.
+        {% endif %}
+    </p>
+
+    {% if projects | length == 0 %}
+        <div class="empty-state">
+            {% if my_projects %}
+                <p>Bạn chưa quản lý dự án nào.</p>
+                <p><a href="/projects/new" class="btn btn-primary">Tạo dự án đầu tiên</a></p>
+            {% else %}
+                <p>Không có dự án nào khớp với bộ lọc hiện tại.</p>
+                <p>Hãy thử chọn vòng khác, đổi trạng thái, hoặc xoá từ khoá tìm kiếm.</p>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Tên dự án</th>
+                        <th>Tác giả</th>
+                        <th>Trạng thái</th>
+                        <th>Vòng</th>
+                        <th>Tiến độ vòng</th>
+                        <th>Quản lý</th>
+                        <th>Cập nhật</th>
+                        <th><span class="sr-only">Thao tác</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in projects %}
+                    <tr>
+                        <td><a href="/projects/{{ p.id }}" class="project-link">{{ p.name }}</a></td>
+                        <td>{{ p.author | default("—") }}</td>
+                        <td>
+                            <span class="phase-badge phase-{{ p.phase }}">{{ p.phase | phase_label }}</span>
+                            {% if p.on_hold %}<span class="badge badge-warning">Tạm dừng</span>{% endif %}
+                        </td>
+                        <td>{% if p.current_round %}{{ p.current_round | round_label }}{% else %}—{% endif %}</td>
+                        <td class="progress-cell">
+                            {% if p.current_round %}
+                                <span class="progress-text">{{ p.done_pages }} / {{ p.total_pages }} trang</span>
+                                {% if p.available_pages > 0 %}
+                                    <span class="badge badge-available">{{ p.available_pages }} chờ soát</span>
+                                {% elif p.in_progress_pages > 0 %}
+                                    <span class="badge">{{ p.in_progress_pages }} đang soát</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="muted">{{ p.total_pages }} trang</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ p.manager_username }}</td>
+                        <td class="muted">{{ p.updated_at_label }}</td>
+                        <td class="row-actions">
+                            {% if p.phase == "in_round" and not p.on_hold and p.available_pages > 0 %}
+                                {% if limit_reached %}
+                                    <span class="badge badge-warning" title="Đạt giới hạn trang trong ngày">Đã đạt giới hạn</span>
+                                {% else %}
+                                    <form method="post" action="/projects/{{ p.id }}/claim" class="inline-form">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn btn-primary btn-sm">Soát trang</button>
+                                    </form>
+                                {% endif %}
+                            {% else %}
+                                <a href="/projects/{{ p.id }}" class="btn btn-outline btn-sm">Chi tiết</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+
+    {% if total_pages_count > 1 %}
+    <nav class="pagination" aria-label="Phân trang dự án">
+        {% if has_previous %}
+            <a class="page-link" href="{{ previous_url }}" hx-get="{{ previous_url }}"
+               hx-target="#project-results" hx-swap="outerHTML" hx-push-url="true">&larr; Trước</a>
+        {% else %}
+            <span class="page-link page-link-disabled">&larr; Trước</span>
+        {% endif %}
+
+        {% for link in page_links %}
+            {% if link.current %}
+                <span class="page-link page-link-current" aria-current="page">{{ link.number }}</span>
+            {% else %}
+                <a class="page-link" href="{{ link.url }}" hx-get="{{ link.url }}"
+                   hx-target="#project-results" hx-swap="outerHTML" hx-push-url="true">{{ link.number }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if has_next %}
+            <a class="page-link" href="{{ next_url }}" hx-get="{{ next_url }}"
+               hx-target="#project-results" hx-swap="outerHTML" hx-push-url="true">Sau &rarr;</a>
+        {% else %}
+            <span class="page-link page-link-disabled">Sau &rarr;</span>
+        {% endif %}
+
+        <span class="pagination-status">Trang {{ current_page }} / {{ total_pages_count }}</span>
+    </nav>
+    {% endif %}
+</div>

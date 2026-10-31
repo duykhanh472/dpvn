@@ -4,18 +4,28 @@
 
 {% block content %}
 <div class="page-header">
-    <h1 class="page-title">{{ project.name }}</h1>
+    <div>
+        <h1 class="page-title">{{ project.name }}</h1>
+        <p class="page-subtitle">
+            {% if project.author %}{{ project.author }} · {% endif %}
+            {% if project.current_round is defined and project.current_round %}{{ project.current_round | round_label }} · {% endif %}
+            <span class="phase-badge phase-{{ project.phase }}">{{ project.phase | phase_label }}</span>
+            {% if project.on_hold %}<span class="badge badge-warning">Tạm dừng</span>{% endif %}
+        </p>
+    </div>
     {% if user is defined and user %}
-        {% set is_manager_of = user.username == project.manager_username %}
-        {% set is_admin = "admin" in user.roles %}
         <div class="action-bar">
             {% if project.phase == "in_round" and not project.on_hold %}
-                <a href="/projects/{{ project.id }}/proof" class="btn btn-primary">Bắt đầu soát lỗi &rarr;</a>
+                {% if limit_reached %}
+                    <span class="btn btn-disabled" aria-disabled="true">Đã đạt giới hạn hôm nay</span>
+                {% else %}
+                    <a href="/projects/{{ project.id }}/proof" class="btn btn-primary">Bắt đầu soát lỗi &rarr;</a>
+                {% endif %}
             {% endif %}
             {% if page_count > 0 %}
                 <a href="/projects/{{ project.id }}/diff?page=1" class="btn btn-outline">So sánh văn bản</a>
             {% endif %}
-            {% if is_manager_of or is_admin %}
+            {% if can_manage %}
                 <a href="/projects/{{ project.id }}/words" class="btn btn-outline">Từ điển dự án</a>
                 {% if project.phase == "draft" %}
                     <a href="/projects/{{ project.id }}/import" class="btn btn-primary">Nhập dữ liệu</a>
@@ -25,19 +35,52 @@
     {% endif %}
 </div>
 
+{% if notice %}
+<div class="alert alert-error" role="alert">{{ notice }}</div>
+{% endif %}
+
+{% if limit_reached %}
+<div class="quota-bar quota-bar-blocked">
+    <p><strong>Đã đạt giới hạn hôm nay.</strong> Bạn đã soát {{ daily_tally }} / {{ daily_limit }} trang.
+        Giới hạn được đặt lại vào 00:00 giờ Việt Nam.</p>
+</div>
+{% else %}
+<div class="quota-bar">
+    <p>Hôm nay bạn đã soát <strong>{{ daily_tally }}</strong> / {{ daily_limit }} trang.</p>
+</div>
+{% endif %}
+
 <div class="detail-grid">
+    <section class="detail-card">
+        <h2>Tiến độ vòng hiện tại</h2>
+        {% if project.current_round is defined and project.current_round %}
+            <div class="progress-bar" role="progressbar" aria-valuenow="{{ progress.percent }}"
+                 aria-valuemin="0" aria-valuemax="100">
+                <span class="progress-bar-fill" style="width: {{ progress.percent }}%"></span>
+            </div>
+            <p class="progress-label">{{ progress.done_pages }} / {{ progress.total_pages }} trang đã xong ({{ progress.percent }}%)</p>
+            <dl class="detail-list detail-list-inline">
+                <div><dt>Chờ soát</dt><dd>{{ progress.available_pages }}</dd></div>
+                <div><dt>Đang soát</dt><dd>{{ progress.in_progress_pages }}</dd></div>
+                <div><dt>Đã xong</dt><dd>{{ progress.done_pages }}</dd></div>
+            </dl>
+        {% else %}
+            <p class="muted">Dự án chưa bước vào vòng soát lỗi nào. Tổng số trang: {{ page_count }}.</p>
+        {% endif %}
+    </section>
+
     <section class="detail-card">
         <h2>Thông tin dự án</h2>
         <dl class="detail-list">
             <dt>Tác giả</dt>
             <dd>{{ project.author | default("(chưa có)") }}</dd>
             <dt>Trạng thái</dt>
-            <dd><span class="phase-badge phase-{{ project.phase }}">{{ project.phase }}</span>
+            <dd><span class="phase-badge phase-{{ project.phase }}">{{ project.phase | phase_label }}</span>
                 {% if project.on_hold %}<span class="badge badge-warning">Tạm dừng</span>{% endif %}
             </dd>
             {% if project.current_round is defined and project.current_round %}
             <dt>Vòng hiện tại</dt>
-            <dd>{{ project.current_round }}</dd>
+            <dd>{{ project.current_round | round_label }}</dd>
             {% endif %}
             <dt>Phong cách dấu thanh</dt>
             <dd>{{ project.tone_style }}</dd>
@@ -45,19 +88,77 @@
             <dd>{{ project.charset }}</dd>
             <dt>Quản lý dự án</dt>
             <dd>{{ project.manager_username }}</dd>
-            <dt>Số trang</dt>
-            <dd>{{ page_count }}</dd>
             <dt>Ngày tạo</dt>
-            <dd>{{ project.created_at[:10] }}</dd>
+            <dd>{{ project.created_at_label }}</dd>
             <dt>Cập nhật lần cuối</dt>
-            <dd>{{ project.updated_at[:10] }}</dd>
+            <dd>{{ project.updated_at_label }}</dd>
         </dl>
     </section>
 </div>
+
+{% if project.comments %}
+<section class="detail-card">
+    <h2>Hướng dẫn của quản lý dự án</h2>
+    <p class="pre-wrap">{{ project.comments }}</p>
+</section>
+{% endif %}
+
+{% if can_view_events %}
+<section class="detail-card">
+    <h2>Lịch sử dự án</h2>
+    {% if events | length == 0 %}
+        <p class="muted">Chưa có sự kiện nào được ghi lại.</p>
+    {% else %}
+        <ul class="event-list">
+            {% for event in events %}
+                <li class="event-item">
+                    <time class="event-time">{{ event.created_at_label }}</time>
+                    <span class="event-actor">{{ event.actor_username }}</span>
+                    <span class="event-change">
+                        {% if event.from_phase or event.to_phase %}
+                            <span class="phase-badge phase-{{ event.from_phase or 'unknown' }}">{{ event.from_phase | phase_label }}</span>
+                            <span aria-hidden="true">&rarr;</span>
+                            <span class="phase-badge phase-{{ event.to_phase or 'unknown' }}">{{ event.to_phase | phase_label }}</span>
+                        {% endif %}
+                        {% if event.from_round or event.to_round %}
+                            <span class="event-round">{{ event.from_round or "—" }} &rarr; {{ event.to_round or "—" }}</span>
+                        {% endif %}
+                    </span>
+                    {% if event.note %}<span class="event-note">{{ event.note }}</span>{% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</section>
+{% endif %}
 
 {% if page_count == 0 and project.phase == "draft" %}
 <div class="info-banner">
     <p>Dự án chưa có trang nào. <a href="/projects/{{ project.id }}/import">Nhập dữ liệu từ tập tin zip</a> để bắt đầu.</p>
 </div>
 {% endif %}
+
+<section id="comments" class="detail-card">
+    <h2>Thảo luận <span class="muted">({{ comment_count }})</span></h2>
+    <div id="comment-list" class="comment-list">
+        {% for comment in comments %}
+            {% include "projects/_comment.html" %}
+        {% else %}
+            <p class="empty-state">Chưa có bình luận nào. Hãy là người đầu tiên trao đổi về dự án này.</p>
+        {% endfor %}
+    </div>
+
+    <form class="comment-form" method="post" action="/projects/{{ project.id }}/comments"
+          hx-post="/projects/{{ project.id }}/comments" hx-target="#comment-list"
+          hx-swap="beforeend" hx-on::after-request="if (event.detail.successful) this.reset()">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="form-label" for="comment-body">Thêm bình luận</label>
+        <textarea id="comment-body" name="body_md" class="form-input comment-input" rows="4"
+                  maxlength="10000" required placeholder="Hỗ trợ Markdown: **đậm**, *nghiêng*, danh sách…"></textarea>
+        <div class="comment-form-actions">
+            <span class="form-hint">Tối đa 10.000 ký tự. Nội dung được định dạng an toàn.</span>
+            <button type="submit" class="btn btn-primary">Gửi bình luận</button>
+        </div>
+    </form>
+</section>
 {% endblock %}
