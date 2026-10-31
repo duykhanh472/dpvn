@@ -18,7 +18,7 @@ use crate::{
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{auth, health, home, projects},
+    routes::{auth, health, home, projects, proof},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -220,6 +220,25 @@ pub fn create_router(state: AppState) -> Router {
         )
         .route("/projects/{id}/claim", post(projects::project_claim_submit))
         .route("/my/projects", get(projects::my_projects))
+        // Proofing interface routes (§14.3, §14.4, §15.2)
+        .route("/projects/{id}/proof", get(proof::proof_entry))
+        .route("/projects/{id}/pages/{page_number}", get(proof::proof_page))
+        .route(
+            "/projects/{id}/pages/{page_number}/save",
+            post(proof::proof_save),
+        )
+        .route(
+            "/projects/{id}/pages/{page_number}/wordcheck",
+            post(proof::proof_wordcheck),
+        )
+        .route(
+            "/projects/{id}/pages/{page_number}/release",
+            post(proof::proof_release),
+        )
+        .route(
+            "/projects/{id}/pages/{page_number}/image",
+            get(proof::proof_image),
+        )
         .layer(middleware::from_fn(set_request_id))
         .with_state(state)
 }

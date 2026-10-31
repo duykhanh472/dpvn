@@ -561,3 +561,121 @@ pub async fn list_project_page_rounds(
 
     Ok(rows)
 }
+
+/// Comprehensive data needed to render the proofing interface for a specific page.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct ProofingPageData {
+    /// Internal primary key of the page.
+    pub page_id: u64,
+    /// Parent project ID.
+    pub project_id: u64,
+    /// Project title.
+    pub project_name: String,
+    /// Book author if set.
+    pub author: Option<String>,
+    /// Current project lifecycle phase.
+    pub phase: String,
+    /// Active proofing round (e.g. "P1", "P2").
+    pub current_round: Option<String>,
+    /// Required character set (e.g. "vi", "vi-fr").
+    pub charset: String,
+    /// Configured tone mark placement style ("old", "new", "either").
+    pub tone_style: String,
+    /// 1-based page sequence number.
+    pub page_number: i32,
+    /// Relative path to original scan.
+    pub image_path: String,
+    /// Scan width in pixels.
+    pub image_width: u32,
+    /// Scan height in pixels.
+    pub image_height: u32,
+    /// Round state ("available", "in_progress", "done") or None if not seeded.
+    pub round_state: Option<String>,
+    /// User ID of current claimant or completer.
+    pub proofer_id: Option<u64>,
+    /// Text for this round (seeded from prev round or OCR).
+    pub text: Option<String>,
+    /// Original raw OCR text baseline.
+    pub ocr_text: Option<String>,
+}
+
+/// Fetch comprehensive proofing data for a specific page number within a project.
+///
+/// Joins `pages`, `projects`, and `page_rounds` matching the project's `current_round`.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if database query fails.
+pub async fn get_proofing_page_data(
+    pool: &MySqlPool,
+    project_id: u64,
+    page_number: i32,
+) -> Result<Option<ProofingPageData>, DbError> {
+    let row = sqlx::query_as::<_, ProofingPageData>(
+        "SELECT p.id AS page_id,
+                p.project_id,
+                pj.name AS project_name,
+                pj.author,
+                pj.phase,
+                pj.current_round,
+                pj.charset,
+                pj.tone_style,
+                p.page_number,
+                p.image_path,
+                p.image_width,
+                p.image_height,
+                pr.state AS round_state,
+                pr.proofer_id,
+                pr.text,
+                p.ocr_text
+         FROM pages p
+         JOIN projects pj ON pj.id = p.project_id
+         LEFT JOIN page_rounds pr ON pr.page_id = p.id AND pr.round = pj.current_round
+         WHERE p.project_id = ? AND p.page_number = ?",
+    )
+    .bind(project_id)
+    .bind(page_number)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
+}
+
+/// Atomically claim a specific page if it is currently available and complies with own-page rule.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if database query fails.
+pub async fn claim_specific_page(
+    pool: &MySqlPool,
+    page_id: u64,
+    round: &str,
+    prev_round: Option<&str>,
+    user_id: u64,
+) -> Result<bool, DbError> {
+    let now = Utc::now();
+    let res = sqlx::query(
+        "UPDATE page_rounds
+            SET state = 'in_progress',
+                proofer_id = ?,
+                claimed_at = ?
+          WHERE page_id = ?
+            AND round = ?
+            AND state = 'available'
+            AND (? IS NULL OR NOT EXISTS (
+                  SELECT 1 FROM page_rounds prev
+                  WHERE prev.page_id = ?
+                    AND prev.round = ?
+                    AND prev.proofer_id = ?))",
+    )
+    .bind(user_id)
+    .bind(now)
+    .bind(page_id)
+    .bind(round)
+    .bind(prev_round)
+    .bind(page_id)
+    .bind(prev_round)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    Ok(res.rows_affected() == 1)
+}

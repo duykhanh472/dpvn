@@ -1,0 +1,11 @@
+# Character set definitions for Distributed Proofreaders Vietnamese.
+# Defines permitted characters and generates the proofing UI character palette.
+
+[vi]
+letters = "aăâbcdđeêghiklmnoôơpqrstuưvxy"     # + uppercase
+punctuation = ".,;:!?…—–-()[]{}«»\"'"
+symbols = "§¶*†‡"
+
+[vi-fr]
+extends = "vi"
+letters_extra = "àâæçéèêëîïôœùûüÿ"

@@ -8,13 +8,16 @@
     {% if user is defined and user %}
         {% set is_manager_of = user.username == project.manager_username %}
         {% set is_admin = "admin" in user.roles %}
-        {% if is_manager_of or is_admin %}
-            <div class="action-bar">
+        <div class="action-bar">
+            {% if project.phase == "in_round" and not project.on_hold %}
+                <a href="/projects/{{ project.id }}/proof" class="btn btn-primary">Bắt đầu soát lỗi &rarr;</a>
+            {% endif %}
+            {% if is_manager_of or is_admin %}
                 {% if project.phase == "draft" %}
                     <a href="/projects/{{ project.id }}/import" class="btn btn-primary">Nhập dữ liệu</a>
                 {% endif %}
-            </div>
-        {% endif %}
+            {% endif %}
+        </div>
     {% endif %}
 </div>
 

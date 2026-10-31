@@ -1,0 +1,29 @@
+<div class="confirm-panel" id="confirm-panel">
+    <div class="confirm-header">
+        <h3>Cảnh báo soát lỗi ({% if issues is defined and issues %}{{ issues | length }}{% else %}0{% endif %} điểm cần chú ý)</h3>
+        <p>Hệ thống phát hiện một số cấu trúc từ hoặc ký tự đặc biệt. Vui lòng kiểm tra lại trước khi xác nhận.</p>
+    </div>
+    <ul class="issue-list">
+        {% if issues is defined and issues %}
+        {% for issue in issues %}
+        <li class="issue-item issue-{{ issue.kind }}">
+            <strong class="issue-word">{{ issue.word }}</strong>
+            <span class="issue-desc">
+                {% if issue.kind == "invalid_character" %}Ký tự không thuộc bộ ký tự dự án
+                {% elif issue.kind == "invalid_syllable" %}Âm tiết không chuẩn tiếng Việt
+                {% elif issue.kind == "in_project_bad_list" %}Từ cần tránh của dự án
+                {% elif issue.kind == "tone_style" %}Dấu thanh không đúng quy chuẩn dự án
+                {% else %}{{ issue.kind }}{% endif %}
+            </span>
+            {% if issue.suggestion is defined and issue.suggestion %}
+                <span class="issue-sug">Gợi ý: <em>{{ issue.suggestion }}</em></span>
+            {% endif %}
+        </li>
+        {% endfor %}
+        {% endif %}
+    </ul>
+    <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-confirm">Quay lại chỉnh sửa</button>
+        <button type="button" class="btn btn-primary" id="btn-submit-confirm" data-hash="{{ confirmed_hash | default('') }}">Xác nhận & Lưu trang</button>
+    </div>
+</div>

@@ -1,0 +1,8 @@
+<div class="wordcheck-summary">
+    {% if issues is defined and issues %}
+        <span class="badge badge-warning">Cảnh báo: {{ issues | length }} từ</span>
+        <button type="button" class="btn btn-sm btn-link" id="btn-next-issue" aria-label="Chuyển đến điểm cần chú ý tiếp theo">Chuyển tiếp theo &rarr;</button>
+    {% else %}
+        <span class="badge badge-success">Không có lỗi chính tả phát hiện</span>
+    {% endif %}
+</div>

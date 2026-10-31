@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Soát lỗi: {{ project_name }} — Trang {{ page_number }}/{{ total_pages }} — DProofreaders VN{% endblock %}
+
+{% block head %}
+<script defer src="{{ asset_url('proof.js') }}"></script>
+{% if page_number < total_pages %}
+<link rel="prefetch" href="/projects/{{ project_id }}/pages/{{ page_number + 1 }}/image" as="image">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="proof-workspace" id="proof-workspace"
+     data-project-id="{{ project_id }}"
+     data-page-number="{{ page_number }}"
+     data-total-pages="{{ total_pages }}"
+     data-round="{{ current_round }}"
+     data-csrf-token="{{ csrf_token }}"
+     data-readonly="{{ 1 if is_readonly else 0 }}">
+
+    <!-- Top control toolbar -->
+    <header class="proof-toolbar" role="toolbar" aria-label="Thanh công cụ soát lỗi">
+        <div class="toolbar-left">
+            <a href="/projects/{{ project_id }}" class="btn btn-sm btn-outline" title="Quay lại chi tiết dự án">&larr; Dự án</a>
+            <h1 class="proof-title">
+                <span class="proof-book-title">{{ project_name }}</span>
+                {% if author is defined and author %}
+                    <span class="proof-author">({{ author }})</span>
+                {% endif %}
+            </h1>
+            <span class="proof-page-indicator badge badge-info">
+                Vòng <strong>{{ current_round }}</strong> &middot; Trang <strong>{{ page_number }}</strong> / {{ total_pages }}
+            </span>
+        </div>
+
+        <div class="toolbar-right">
+            {% if not is_readonly %}
+                <form method="post" action="/projects/{{ project_id }}/pages/{{ page_number }}/release" class="inline-form" onsubmit="return confirm('Bạn có chắc muốn nhả trang này lại cho cộng đồng?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Nhả trang lại để người khác nhận">Nhả trang</button>
+                </form>
+                <button type="button" id="btn-save-page" class="btn btn-sm btn-primary" title="Lưu trang và tiếp tục (Ctrl+S)">
+                    Lưu &amp; Tiếp tục &rarr;
+                </button>
+            {% else %}
+                <span class="badge badge-warning">Chế độ chỉ xem</span>
+            {% endif %}
+        </div>
+    </header>
+
+    <!-- Character palette toolbar -->
+    <section class="proof-palette-bar" aria-label="Bảng ký tự đặc biệt">
+        <span class="palette-label">Ký tự:</span>
+        <div class="palette-buttons" role="group" aria-label="Chèn ký tự đặc biệt">
+            {% for ch in palette %}
+                <button type="button" class="palette-btn" data-char="{{ ch }}" title="Chèn '{{ ch }}' tại con trỏ" aria-label="Chèn {{ ch }}">{{ ch }}</button>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Draggable split pane container -->
+    <div class="proof-split-container" id="proof-split">
+        <!-- Image viewer pane -->
+        <section class="proof-image-pane" id="image-pane" aria-label="Bản quét trang sách">
+            <div class="image-controls" role="toolbar" aria-label="Điều khiển hình ảnh">
+                <button type="button" class="btn btn-sm" id="btn-zoom-out" title="Thu nhỏ (-)" aria-label="Thu nhỏ">&minus;</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-in" title="Phóng to (+)" aria-label="Phóng to">&plus;</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-100" title="Kích thước thực (100%)">100%</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-200" title="Phóng to 200%">200%</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-fit" title="Vừa khung hình (0)">Vừa khung</button>
+                <button type="button" class="btn btn-sm" id="btn-rotate" title="Xoay hình 90 độ (R)" aria-label="Xoay 90 độ">&#8635; Xoay</button>
+            </div>
+            <div class="image-viewport" id="image-viewport" tabindex="0" role="region" aria-label="Khu vực xem ảnh, kéo để di chuyển">
+                <div class="image-stage" id="image-stage">
+                    <img id="proof-image"
+                         src="{{ image_url }}"
+                         alt="Bản quét trang {{ page_number }} — {{ image_width }}x{{ image_height }} pixel"
+                         width="{{ image_width }}"
+                         height="{{ image_height }}"
+                         draggable="false">
+                </div>
+            </div>
+        </section>
+
+        <!-- Draggable splitter handle -->
+        <div class="proof-split-handle" id="split-handle"
+             role="separator"
+             tabindex="0"
+             aria-orientation="vertical"
+             aria-label="Kéo để chia tỷ lệ khung hình ảnh và văn bản"
+             title="Kéo sang trái/phải hoặc dùng phím mũi tên để điều chỉnh tỷ lệ">
+            <div class="handle-bar"></div>
+        </div>
+
+        <!-- Text editor pane -->
+        <section class="proof-text-pane" id="text-pane" aria-label="Soạn thảo văn bản">
+            <div class="editor-wrapper" id="editor-wrapper">
+                <!-- CodeMirror 6 will mount here -->
+                <div id="codemirror-mount"></div>
+                <!-- Initial text storage for JS initialization -->
+                <textarea id="raw-initial-text" style="display:none;" aria-hidden="true">{{ initial_text }}</textarea>
+            </div>
+
+            <!-- Issue & Confirm panel -->
+            <div class="proof-issues-wrapper" id="issues-wrapper" style="display:none;" aria-live="polite">
+                <!-- Populated via wordcheck / confirm flow -->
+            </div>
+        </section>
+    </div>
+
+    <!-- Status & tally bar -->
+    <footer class="proof-status-bar" role="status">
+        <div class="status-left">
+            <span id="stat-words">Từ: <strong>0</strong></span>
+            <span class="stat-sep">&middot;</span>
+            <span id="stat-chars">Ký tự: <strong>0</strong></span>
+            <span class="stat-sep">&middot;</span>
+            <span id="stat-issues" class="stat-issues-clean">Chính tả: <strong>Sạch</strong></span>
+        </div>
+        <div class="status-center">
+            <span id="save-status" class="save-status-saved">Đã đồng bộ</span>
+        </div>
+        <div class="status-right">
+            <span class="stat-tally">
+                Hôm nay: <strong>{{ daily_tally }}</strong> / {{ daily_limit }} trang
+            </span>
+        </div>
+    </footer>
+</div>
+{% endblock %}

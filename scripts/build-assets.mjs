@@ -14,7 +14,7 @@ fs.mkdirSync(CSS_OUT, { recursive: true });
 
 // 1. Build JS assets
 const jsResult = await esbuild.build({
-    entryPoints: ["assets/app.js"],
+    entryPoints: ["assets/app.js", "assets/proof.js"],
     bundle: true,
     minify: true,
     sourcemap: true,
@@ -53,6 +53,9 @@ const manifest = {
 for (const [outputPath, meta] of Object.entries(jsResult.metafile.outputs)) {
     if (meta.entryPoint === "assets/app.js" && outputPath.endsWith(".js")) {
         manifest["app.js"] = "/" + outputPath.replace(/\\/g, "/");
+    }
+    if (meta.entryPoint === "assets/proof.js" && outputPath.endsWith(".js")) {
+        manifest["proof.js"] = "/" + outputPath.replace(/\\/g, "/");
     }
 }
 

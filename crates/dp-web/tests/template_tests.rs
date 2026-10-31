@@ -35,6 +35,24 @@ fn fixture_context() -> minijinja::Value {
         projects => Vec::<minijinja::Value>::new(),
         preview => minijinja::Value::UNDEFINED,
         my_projects => minijinja::Value::UNDEFINED,
+        // Proofing workspace fixture fields
+        project_id => 1u64,
+        project_name => "Truyện Kiều",
+        author => "Nguyễn Du",
+        page_number => 1i32,
+        total_pages => 10i64,
+        current_round => "P1",
+        round_state => "in_progress",
+        is_readonly => false,
+        image_url => "/projects/1/pages/1/image",
+        image_width => 1500u32,
+        image_height => 2200u32,
+        initial_text => "Văn bản mẫu",
+        palette => vec!["đ", "…", "—"],
+        daily_tally => 5u32,
+        daily_limit => 100u32,
+        issues => Vec::<minijinja::Value>::new(),
+        confirmed_hash => "dummyhash",
     }
 }
 
@@ -48,8 +66,9 @@ fn test_all_templates_render() {
 
     let mut count = 0;
     for (name, tmpl) in env.templates() {
-        // Skip macros files which aren't standalone renderable pages
-        if name.ends_with("macros.html") || name.starts_with('_') {
+        // Skip partials / macros files which aren't standalone renderable pages
+        let filename = name.split('/').next_back().unwrap_or(name);
+        if filename.starts_with('_') || filename.ends_with("macros.html") {
             continue;
         }
 
