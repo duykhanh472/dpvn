@@ -131,6 +131,7 @@ fn build_test_app(pool: MySqlPool) -> axum::Router {
         templates,
         manifest,
         rate_limiter,
+        site_words: Arc::new(tokio::sync::RwLock::new(Default::default())),
     };
 
     create_router(state)

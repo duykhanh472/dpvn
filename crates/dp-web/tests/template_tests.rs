@@ -53,6 +53,12 @@ fn fixture_context() -> minijinja::Value {
         daily_limit => 100u32,
         issues => Vec::<minijinja::Value>::new(),
         confirmed_hash => "dummyhash",
+        words => Vec::<minijinja::Value>::new(),
+        total_count => 0i64,
+        current_page => 1u32,
+        total_pages => 1u32,
+        filter_kind => "",
+        filter_q => "",
     }
 }
 

@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Từ điển dự án: {{ project_name }} — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-breadcrumbs">
+        <a href="/projects/{{ project_id }}">&larr; Quay lại dự án: {{ project_name }}</a>
+    </div>
+    <h1 class="page-title">Từ điển dự án: {{ project_name }}</h1>
+    <p class="page-subtitle">Quản lý các từ đặc biệt (danh từ riêng, từ cổ, từ cần tránh) cho dự án này.</p>
+</div>
+
+<div class="detail-grid">
+    <!-- Form to add new word -->
+    <section class="detail-card">
+        <h2>Thêm từ vào dự án</h2>
+        <form method="post" action="/projects/{{ project_id }}/words" class="word-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="add">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="kind">Loại từ</label>
+                    <select name="kind" id="kind" class="form-select" required>
+                        <option value="good">Từ cho phép (Bỏ qua cảnh báo — tên riêng, từ cổ...)</option>
+                        <option value="bad">Từ cần tránh (Luôn cảnh báo người soát lỗi)</option>
+                    </select>
+                </div>
+
+                <div class="form-group flex-1">
+                    <label for="word">Từ / Âm tiết</label>
+                    <input type="text" name="word" id="word" class="form-input" placeholder="Ví dụ: Shakespeare, trẫm..." required autocomplete="off">
+                </div>
+
+                <div class="form-group align-end">
+                    <button type="submit" class="btn btn-primary">Thêm từ</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- Search & Filter bar -->
+    <section class="detail-card">
+        <div class="search-filter-bar">
+            <form method="get" action="/projects/{{ project_id }}/words" class="inline-search-form">
+                <input type="text" name="q" value="{{ filter_q | default('') }}" placeholder="Tìm kiếm từ..." class="form-input form-input-sm">
+                <select name="kind" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="good" {% if filter_kind == "good" %}selected{% endif %}>Cho phép (good)</option>
+                    <option value="bad" {% if filter_kind == "bad" %}selected{% endif %}>Cần tránh (bad)</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline">Lọc</button>
+                {% if filter_q or filter_kind %}
+                    <a href="/projects/{{ project_id }}/words" class="btn btn-sm btn-link">Xóa lọc</a>
+                {% endif %}
+            </form>
+            <span class="count-badge">Tổng số: <strong>{{ total_count }}</strong> từ</span>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Loại</th>
+                    <th>Từ / Âm tiết</th>
+                    <th>Người thêm</th>
+                    <th>Ngày thêm</th>
+                    <th class="text-right">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if words is defined and words %}
+                    {% for w in words %}
+                    <tr>
+                        <td>
+                            {% if w.kind == "good" %}
+                                <span class="badge badge-success">Cho phép</span>
+                            {% else %}
+                                <span class="badge badge-danger">Cần tránh</span>
+                            {% endif %}
+                        </td>
+                        <td><strong class="font-mono">{{ w.word }}</strong></td>
+                        <td>{{ w.added_by }}</td>
+                        <td>{{ w.added_at }}</td>
+                        <td class="text-right">
+                            <form method="post" action="/projects/{{ project_id }}/words" class="inline-form" onsubmit="return confirm('Xóa từ này khỏi danh sách dự án?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="kind" value="{{ w.kind }}">
+                                <input type="hidden" name="word" value="{{ w.word }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Chưa có từ nào trong danh sách.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if current_page > 1 %}
+                <a href="/projects/{{ project_id }}/words?page={{ current_page - 1 }}&kind={{ filter_kind }}&q={{ filter_q }}" class="btn btn-sm">&larr; Trước</a>
+            {% endif %}
+            <span class="page-indicator">Trang {{ current_page }} / {{ total_pages }}</span>
+            {% if current_page < total_pages %}
+                <a href="/projects/{{ project_id }}/words?page={{ current_page + 1 }}&kind={{ filter_kind }}&q={{ filter_q }}" class="btn btn-sm">Sau &rarr;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

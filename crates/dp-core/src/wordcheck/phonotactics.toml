@@ -1,0 +1,44 @@
+# Vietnamese Phonotactic Tables (§9.3)
+# Syllable structure: Onset + Nucleus + Coda + Tone
+
+[onsets]
+# Initial consonants (phụ âm đầu)
+# Empty string represents zero onset (tiếng không có phụ âm đầu)
+items = [
+  "", "b", "c", "ch", "d", "đ", "g", "gh", "gi", "h",
+  "k", "kh", "l", "m", "n", "ng", "ngh", "nh", "p", "ph",
+  "qu", "r", "s", "t", "th", "tr", "v", "x"
+]
+
+[codas]
+# Final consonants (phụ âm cuối)
+# Empty string represents open syllable (tiếng mở)
+items = [
+  "", "c", "ch", "m", "n", "ng", "nh", "p", "t"
+]
+
+[stop_codas]
+# Stop codas (phụ âm tắc) - only admit Sắc (acute) and Nặng (dot) tones
+items = ["c", "ch", "p", "t"]
+
+[nuclei]
+# Single vowels (nguyên âm đơn)
+monophthongs = [
+  "a", "ă", "â", "e", "ê", "i", "o", "ô", "ơ", "u", "ư", "y"
+]
+
+# Diphthongs and triphthongs (nguyên âm đôi và ba)
+polyphthongs = [
+  # Diphthongs without medial
+  "ia", "iê", "yê", "ya", "ua", "uô", "ưa", "ươ",
+  # Diphthongs/Triphthongs with medial /w/ (o/u)
+  "oa", "oă", "oe", "oo", "ua", "uê", "uơ", "uy", "uya", "uyê",
+  # Offglides ending in -i, -y, -u, -o
+  "ai", "ao", "au", "âu", "ay", "ây",
+  "eo", "êu", "iu",
+  "oi", "ôi", "ơi",
+  "ui", "ưi", "ưu",
+  # Triphthongs
+  "oai", "oay", "oao", "uai", "uay", "uau",
+  "iêu", "yêu", "uôi", "ươi", "ươu", "uây", "uyu"
+]

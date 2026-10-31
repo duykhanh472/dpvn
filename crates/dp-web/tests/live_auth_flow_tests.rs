@@ -38,6 +38,7 @@ async fn test_live_auth_end_to_end_flow() {
         templates,
         manifest,
         rate_limiter,
+        site_words: Arc::new(tokio::sync::RwLock::new(Default::default())),
     };
 
     let app = create_router(state);

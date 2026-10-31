@@ -23,6 +23,9 @@
                     {% if is_manager %}
                         <a href="/my/projects" class="nav-item">Dự án của tôi</a>
                     {% endif %}
+                    {% if "admin" in user.roles %}
+                        <a href="/admin/words" class="nav-item">Từ điển hệ thống</a>
+                    {% endif %}
                     <span class="user-greeting">Chào, <strong>{{ user.username }}</strong></span>
                     <form method="post" action="/logout" class="inline-form">
                         <button type="submit" class="nav-item nav-btn-logout">Đăng xuất</button>

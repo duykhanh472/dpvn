@@ -11,14 +11,16 @@ use dp_core::DomainError;
 use dp_db::DbError;
 use sqlx::MySqlPool;
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::{
     auth::RateLimiter,
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{auth, health, home, projects, proof},
+    routes::{auth, health, home, projects, proof, words},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -34,6 +36,8 @@ pub struct AppState {
     pub manifest: Arc<AssetManifest>,
     /// In-process rate limiter for authentication endpoints.
     pub rate_limiter: Arc<RateLimiter>,
+    /// In-memory cache of site-wide (good, bad) word lists (§9.6).
+    pub site_words: Arc<RwLock<(HashSet<String>, HashSet<String>)>>,
 }
 
 /// Unified error enum for the web layer.
@@ -238,6 +242,15 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/projects/{id}/pages/{page_number}/image",
             get(proof::proof_image),
+        )
+        // Custom word lists (§9.2, §7.2)
+        .route(
+            "/projects/{id}/words",
+            get(words::project_words_page).post(words::project_words_submit),
+        )
+        .route(
+            "/admin/words",
+            get(words::admin_words_page).post(words::admin_words_submit),
         )
         .layer(middleware::from_fn(set_request_id))
         .with_state(state)

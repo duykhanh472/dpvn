@@ -248,12 +248,17 @@ async fn main() -> ExitCode {
                 }
             };
 
+            let site_words_data = dp_db::queries::words::get_all_site_words(&pool)
+                .await
+                .unwrap_or_default();
+
             let state = AppState {
                 db: pool,
                 config: config.clone(),
                 templates,
                 manifest,
                 rate_limiter: Arc::new(dp_web::RateLimiter::new()),
+                site_words: Arc::new(tokio::sync::RwLock::new(site_words_data)),
             };
 
             let router = create_router(state);

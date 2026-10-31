@@ -13,8 +13,8 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
 };
 use dp_core::{
-    CharsetCatalog, RoundId, RoundsConfig, viet,
-    wordcheck::{IssueKind, WordIssue, validate_characters},
+    CharsetCatalog, RoundId, RoundsConfig, ToneStyle, WordcheckContext, check_page_text, viet,
+    wordcheck::{WordIssue, validate_characters},
 };
 use dp_db::queries::{
     page_rounds::{
@@ -24,6 +24,7 @@ use dp_db::queries::{
     page_tallies::{check_daily_limit, current_vietnam_date, get_total_daily_tally},
     pages::count_pages_by_project_id,
     projects::get_project_by_id,
+    words::get_all_project_words,
 };
 use minijinja::context;
 use serde::{Deserialize, Serialize};
@@ -307,13 +308,21 @@ pub async fn proof_save(
 
     // 5. Wordcheck advisory issues & Content-bound confirmation (§9.5)
     let current_hash = compute_sha256_hex(&normalized);
-    let issues: Vec<WordIssue> = Vec::new();
 
-    // Check tone style if project specifies 'old' or 'new'
-    if data.tone_style == "old" || data.tone_style == "new" {
-        // Collect potential tone style deviations if any
-        // (Full phonotactic engine expands in Phase 6)
-    }
+    let (project_good, project_bad) = get_all_project_words(&state.db, id).await?;
+    let site_words_guard = state.site_words.read().await;
+
+    let tone_style = data.tone_style.parse::<ToneStyle>().unwrap_or_default();
+    let wc_ctx = WordcheckContext {
+        charset,
+        tone_style,
+        project_good: &project_good,
+        project_bad: &project_bad,
+        site_good: &site_words_guard.0,
+        site_bad: &site_words_guard.1,
+    };
+
+    let issues = check_page_text(&normalized, &wc_ctx);
 
     let is_confirmed = payload
         .confirmed_hash
@@ -404,21 +413,21 @@ pub async fn proof_wordcheck(
         .unwrap_or_else(|| catalog.default_vi());
 
     let normalized = viet::normalize(&payload.text);
-    let mut issues = Vec::new();
 
-    // Scan for unallowed codepoints to highlight in CM6
-    for (idx, ch) in normalized.char_indices() {
-        if !charset.is_allowed(ch) {
-            issues.push(WordIssue {
-                word: ch.to_string(),
-                byte_start: idx,
-                byte_end: idx + ch.len_utf8(),
-                kind: IssueKind::InvalidCharacter,
-                suggestion: None,
-            });
-        }
-    }
+    let (project_good, project_bad) = get_all_project_words(&state.db, id).await?;
+    let site_words_guard = state.site_words.read().await;
 
+    let tone_style = data.tone_style.parse::<ToneStyle>().unwrap_or_default();
+    let wc_ctx = WordcheckContext {
+        charset,
+        tone_style,
+        project_good: &project_good,
+        project_bad: &project_bad,
+        site_good: &site_words_guard.0,
+        site_bad: &site_words_guard.1,
+    };
+
+    let issues = check_page_text(&normalized, &wc_ctx);
     Ok(Json(issues))
 }
 

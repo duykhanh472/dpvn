@@ -13,6 +13,7 @@
                 <a href="/projects/{{ project.id }}/proof" class="btn btn-primary">Bắt đầu soát lỗi &rarr;</a>
             {% endif %}
             {% if is_manager_of or is_admin %}
+                <a href="/projects/{{ project.id }}/words" class="btn btn-outline">Từ điển dự án</a>
                 {% if project.phase == "draft" %}
                     <a href="/projects/{{ project.id }}/import" class="btn btn-primary">Nhập dữ liệu</a>
                 {% endif %}

@@ -7,3 +7,4 @@ pub mod project_events;
 pub mod projects;
 pub mod sessions;
 pub mod users;
+pub mod words;

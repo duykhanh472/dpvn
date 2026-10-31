@@ -25,6 +25,7 @@ async fn test_health_routes_return_service_unavailable_without_db() {
         templates,
         manifest,
         rate_limiter: Arc::new(dp_web::RateLimiter::new()),
+        site_words: Arc::new(tokio::sync::RwLock::new(Default::default())),
     };
 
     let app = create_router(state);

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Quản trị từ điển hệ thống — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Quản trị từ điển toàn hệ thống</h1>
+    <p class="page-subtitle">Từ điển chung áp dụng cho mọi dự án soát lỗi trên toàn nền tảng.</p>
+</div>
+
+<div class="detail-grid">
+    <!-- Form to add site word -->
+    <section class="detail-card">
+        <h2>Thêm từ vào từ điển chung</h2>
+        <form method="post" action="/admin/words" class="word-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="add">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="kind">Loại từ</label>
+                    <select name="kind" id="kind" class="form-select" required>
+                        <option value="good">Từ chuẩn (Cho phép trên toàn trang)</option>
+                        <option value="bad">Từ tránh dùng (Cảnh báo trên toàn trang)</option>
+                    </select>
+                </div>
+
+                <div class="form-group flex-1">
+                    <label for="word">Từ / Âm tiết (NFC)</label>
+                    <input type="text" name="word" id="word" class="form-input" placeholder="Ví dụ: việt, nam..." required autocomplete="off">
+                </div>
+
+                <div class="form-group align-end">
+                    <button type="submit" class="btn btn-primary">Thêm vào hệ thống</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- Search & Filter bar -->
+    <section class="detail-card">
+        <div class="search-filter-bar">
+            <form method="get" action="/admin/words" class="inline-search-form">
+                <input type="text" name="q" value="{{ filter_q | default('') }}" placeholder="Tìm kiếm từ..." class="form-input form-input-sm">
+                <select name="kind" class="form-select form-select-sm">
+                    <option value="">Tất cả</option>
+                    <option value="good" {% if filter_kind == "good" %}selected{% endif %}>Chuẩn (good)</option>
+                    <option value="bad" {% if filter_kind == "bad" %}selected{% endif %}>Tránh dùng (bad)</option>
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline">Lọc</button>
+                {% if filter_q or filter_kind %}
+                    <a href="/admin/words" class="btn btn-sm btn-link">Xóa lọc</a>
+                {% endif %}
+            </form>
+            <span class="count-badge">Tổng số: <strong>{{ total_count }}</strong> từ</span>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Loại</th>
+                    <th>Từ / Âm tiết</th>
+                    <th>Người thêm</th>
+                    <th>Ngày thêm</th>
+                    <th class="text-right">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if words is defined and words %}
+                    {% for w in words %}
+                    <tr>
+                        <td>
+                            {% if w.kind == "good" %}
+                                <span class="badge badge-success">Chuẩn</span>
+                            {% else %}
+                                <span class="badge badge-danger">Tránh dùng</span>
+                            {% endif %}
+                        </td>
+                        <td><strong class="font-mono">{{ w.word }}</strong></td>
+                        <td>{{ w.added_by }}</td>
+                        <td>{{ w.added_at }}</td>
+                        <td class="text-right">
+                            <form method="post" action="/admin/words" class="inline-form" onsubmit="return confirm('Xóa từ này khỏi từ điển toàn hệ thống?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="kind" value="{{ w.kind }}">
+                                <input type="hidden" name="word" value="{{ w.word }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Chưa có từ nào trong danh sách.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        {% if total_pages > 1 %}
+        <div class="pagination">
+            {% if current_page > 1 %}
+                <a href="/admin/words?page={{ current_page - 1 }}&kind={{ filter_kind }}&q={{ filter_q }}" class="btn btn-sm">&larr; Trước</a>
+            {% endif %}
+            <span class="page-indicator">Trang {{ current_page }} / {{ total_pages }}</span>
+            {% if current_page < total_pages %}
+                <a href="/admin/words?page={{ current_page + 1 }}&kind={{ filter_kind }}&q={{ filter_q }}" class="btn btn-sm">Sau &rarr;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

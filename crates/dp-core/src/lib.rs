@@ -20,4 +20,8 @@ pub use transition::{
     Action, Actor, ActorRole, Effect, Guard, ProjectContext, STANDARD_TRANSITIONS, Transition,
     apply, toggle_on_hold,
 };
-pub use wordcheck::{IssueKind, WordIssue, validate_characters};
+pub use wordcheck::{
+    IssueKind, PhonotacticError, SyllableParts, SyllableToken, Tone, WordIssue, WordcheckContext,
+    check_page_text, find_best_suggestion, levenshtein_distance, tokenize_syllables,
+    validate_characters, validate_syllable,
+};
