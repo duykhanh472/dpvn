@@ -311,6 +311,7 @@ async fn main() -> ExitCode {
                 &config.paths.data.to_string_lossy(),
                 24, // orphan_age_hours
                 7,  // pending_user_days
+                config.limits.claim_timeout_hours,
             )
             .await;
 
@@ -318,6 +319,10 @@ async fn main() -> ExitCode {
             println!(
                 "Pruned {} unactivated pending users.",
                 result.pending_users_removed
+            );
+            println!(
+                "Released {} stale page claims.",
+                result.stale_claims_released
             );
             println!("Pruned {} tmp files.", result.tmp_files_removed);
             println!(

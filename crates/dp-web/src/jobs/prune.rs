@@ -21,6 +21,8 @@ pub struct PruneResult {
     pub sessions_removed: u64,
     /// Số tài khoản chờ xác nhận đã xóa.
     pub pending_users_removed: u64,
+    /// Số lượt nhận trang hết hạn đã tự động giải phóng.
+    pub stale_claims_released: u64,
     /// Số tệp tmp cũ đã xóa.
     pub tmp_files_removed: u64,
     /// Số tệp ảnh mồ côi đã xóa.
@@ -38,11 +40,13 @@ pub struct PruneResult {
 /// - `data_dir`: thư mục gốc lưu trữ tệp (cấu hình `storage.data_dir`)
 /// - `orphan_age_hours`: số giờ tệp mồ côi phải tồn tại trước khi bị xóa (mặc định 24)
 /// - `pending_user_days`: số ngày tài khoản chờ xác nhận được giữ lại (mặc định 7)
+/// - `claim_timeout_hours`: số giờ trang được giữ trước khi tự động giải phóng (mặc định 72)
 pub async fn run_all(
     pool: &MySqlPool,
     data_dir: &str,
     orphan_age_hours: u64,
     pending_user_days: u64,
+    claim_timeout_hours: u32,
 ) -> PruneResult {
     let mut result = PruneResult::default();
 
@@ -64,12 +68,21 @@ pub async fn run_all(
         Err(e) => warn!(error = %e, "failed to prune pending users"),
     }
 
-    // 3. Xóa tệp tmp cũ
+    // 3. Tự động giải phóng các lượt nhận trang đã quá hạn
+    match dp_db::queries::page_rounds::release_stale_claims(pool, claim_timeout_hours).await {
+        Ok(n) => {
+            result.stale_claims_released = n;
+            info!(released = n, "released stale page claims");
+        }
+        Err(e) => warn!(error = %e, "failed to release stale page claims"),
+    }
+
+    // 4. Xóa tệp tmp cũ
     let tmp_dir = PathBuf::from(data_dir).join("tmp");
     result.tmp_files_removed =
         prune_tmp_dir(&tmp_dir, Duration::from_secs(orphan_age_hours * 3600)).await;
 
-    // 4. Xóa tệp ảnh và hiển thị mồ côi
+    // 5. Xóa tệp ảnh và hiển thị mồ côi
     let age = Duration::from_secs(orphan_age_hours * 3600);
     let (orphan_img, orphan_disp) = prune_orphan_files(pool, data_dir, age).await;
     result.orphan_images_removed = orphan_img;

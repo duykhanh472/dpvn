@@ -18,6 +18,14 @@ pub enum DbError {
     /// Failure executing database migrations.
     #[error("migration error: {0}")]
     Migrate(#[from] sqlx::migrate::MigrateError),
+
+    /// Business or concurrency conflict (e.g. race on claiming or saving a page).
+    #[error("conflict: {0}")]
+    Conflict(String),
+
+    /// Domain error propagated during state transition evaluation.
+    #[error("domain error: {0}")]
+    Domain(#[from] dp_core::DomainError),
 }
 
 /// Create a new MySQL connection pool configured with the provided limits.

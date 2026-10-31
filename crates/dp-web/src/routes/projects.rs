@@ -1,20 +1,28 @@
 //! Routes and handlers for project creation, import, and detail view.
 
+use std::str::FromStr;
+
 use axum::{
     Form,
     extract::{Multipart, Path, State},
     response::{IntoResponse, Redirect, Response},
 };
+use dp_core::{ActorRole, Phase, UserId, round::RoundsConfig};
 use dp_db::queries::{
+    page_rounds::{claim_next_available_page, get_user_active_claim},
+    page_tallies::check_daily_limit,
     pages::count_pages_by_project_id,
-    projects::{NewProject, create_project, get_project_detail, list_projects},
+    projects::{
+        NewProject, create_project, get_project_by_id, get_project_detail, list_projects,
+        toggle_project_hold, transition_project,
+    },
 };
 use serde::Deserialize;
 use tracing::instrument;
 
 use crate::{
     AppError, AppState,
-    auth::{AuthUser, ManagerUser},
+    auth::{AuthUser, ManagerUser, verify_csrf_token},
     ingest::{self, preview::IngestPreview},
 };
 
@@ -444,5 +452,155 @@ fn validate_charset(s: &str) -> Result<&'static str, AppError> {
         other => Err(AppError::BadRequest(format!(
             "Bộ ký tự không được hỗ trợ: '{other}'"
         ))),
+    }
+}
+
+// ─── Phase transitions & hold ────────────────────────────────────────────────
+
+/// Form data for transitioning a project phase.
+#[derive(Debug, Deserialize)]
+pub struct TransitionForm {
+    pub target_phase: String,
+    pub csrf_token: String,
+}
+
+/// `POST /projects/{id}/transition` — execute a project state transition.
+#[instrument(skip(state, form))]
+pub async fn project_transition_submit(
+    manager: ManagerUser,
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Form(form): Form<TransitionForm>,
+) -> Result<Response, AppError> {
+    if !verify_csrf_token(&form.csrf_token, &manager.0.csrf_token) {
+        return Err(AppError::Forbidden);
+    }
+
+    let target_phase = Phase::from_str(&form.target_phase)
+        .map_err(|e| AppError::BadRequest(format!("Trạng thái không hợp lệ: {e}")))?;
+
+    let actor_role = if manager.0.has_role("admin") {
+        ActorRole::Admin
+    } else {
+        ActorRole::Manager
+    };
+
+    let rounds = RoundsConfig::default_embedded();
+    transition_project(
+        &state.db,
+        id,
+        target_phase,
+        actor_role,
+        Some(UserId::new(manager.0.user_id.0)),
+        &rounds,
+    )
+    .await?;
+
+    Ok(Redirect::to(&format!("/projects/{id}")).into_response())
+}
+
+/// Form data for toggling project hold status.
+#[derive(Debug, Deserialize)]
+pub struct ToggleHoldForm {
+    pub csrf_token: String,
+}
+
+/// `POST /projects/{id}/hold` — toggle project on_hold pause flag.
+#[instrument(skip(state, form))]
+pub async fn project_toggle_hold_submit(
+    manager: ManagerUser,
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Form(form): Form<ToggleHoldForm>,
+) -> Result<Response, AppError> {
+    if !verify_csrf_token(&form.csrf_token, &manager.0.csrf_token) {
+        return Err(AppError::Forbidden);
+    }
+
+    let actor_role = if manager.0.has_role("admin") {
+        ActorRole::Admin
+    } else {
+        ActorRole::Manager
+    };
+
+    toggle_project_hold(
+        &state.db,
+        id,
+        actor_role,
+        Some(UserId::new(manager.0.user_id.0)),
+    )
+    .await?;
+
+    Ok(Redirect::to(&format!("/projects/{id}")).into_response())
+}
+
+/// Form data for claiming a page.
+#[derive(Debug, Deserialize)]
+pub struct ClaimPageForm {
+    pub csrf_token: String,
+}
+
+/// `POST /projects/{id}/claim` — claim the next available page in active round.
+#[instrument(skip(state, form))]
+pub async fn project_claim_submit(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(id): Path<u64>,
+    Form(form): Form<ClaimPageForm>,
+) -> Result<Response, AppError> {
+    if !verify_csrf_token(&form.csrf_token, &auth.csrf_token) {
+        return Err(AppError::Forbidden);
+    }
+
+    // Check daily limit
+    check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await?;
+
+    // Check if user already holds a page in progress
+    if let Some(active) = get_user_active_claim(&state.db, auth.user_id.0).await? {
+        return Ok(Redirect::to(&format!(
+            "/projects/{}/proof/{}",
+            active.project_id, active.page_number
+        ))
+        .into_response());
+    }
+
+    let project = get_project_by_id(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    if project.phase != "in_round" || project.on_hold != 0 {
+        return Err(AppError::BadRequest(
+            "Dự án hiện không nhận soát lỗi.".to_string(),
+        ));
+    }
+
+    let current_round = project
+        .current_round
+        .ok_or_else(|| AppError::BadRequest("Dự án không có vòng hoạt động.".to_string()))?;
+
+    let rounds = RoundsConfig::default_embedded();
+    let prev_round_opt = rounds
+        .get_round(
+            &dp_core::RoundId::new(&current_round)
+                .map_err(|e| AppError::BadRequest(e.to_string()))?,
+        )
+        .and_then(|r| rounds.prev_round(&r.id))
+        .map(|r| r.id.as_str());
+
+    let claimed = claim_next_available_page(
+        &state.db,
+        id,
+        &current_round,
+        prev_round_opt,
+        auth.user_id.0,
+        3,
+    )
+    .await?;
+
+    match claimed {
+        Some(page) => {
+            Ok(Redirect::to(&format!("/projects/{id}/proof/{}", page.page_number)).into_response())
+        }
+        None => Ok(Redirect::to(&format!("/projects/{id}")).into_response()),
     }
 }

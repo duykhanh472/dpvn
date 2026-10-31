@@ -113,6 +113,20 @@ impl IntoResponse for AppError {
                 Cow::Borrowed("Vui lòng đăng nhập để tiếp tục."),
             ),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, Cow::Owned(msg.clone())),
+            AppError::Db(DbError::Conflict(msg)) => (StatusCode::CONFLICT, Cow::Owned(msg.clone())),
+            AppError::Db(DbError::Domain(DomainError::DailyLimitReached { limit })) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                Cow::Owned(format!(
+                    "Bạn đã đạt giới hạn soát lỗi {limit} trang trong ngày."
+                )),
+            ),
+            AppError::Db(DbError::Domain(DomainError::TransitionDenied { .. })) => (
+                StatusCode::CONFLICT,
+                Cow::Borrowed("Chuyển trạng thái dự án không hợp lệ."),
+            ),
+            AppError::Db(DbError::Domain(err)) => {
+                (StatusCode::BAD_REQUEST, Cow::Owned(err.to_string()))
+            }
             AppError::Db(DbError::Sqlx(sqlx::Error::RowNotFound)) => (
                 StatusCode::NOT_FOUND,
                 Cow::Borrowed("Không tìm thấy dữ liệu yêu cầu."),
@@ -196,6 +210,15 @@ pub fn create_router(state: AppState) -> Router {
             "/projects/{id}/import",
             get(projects::import_page).post(projects::import_submit),
         )
+        .route(
+            "/projects/{id}/transition",
+            post(projects::project_transition_submit),
+        )
+        .route(
+            "/projects/{id}/hold",
+            post(projects::project_toggle_hold_submit),
+        )
+        .route("/projects/{id}/claim", post(projects::project_claim_submit))
         .route("/my/projects", get(projects::my_projects))
         .layer(middleware::from_fn(set_request_id))
         .with_state(state)

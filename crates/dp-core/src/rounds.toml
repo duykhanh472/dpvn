@@ -1,0 +1,32 @@
+# Compiled into the binary. Order defines progression.
+# `min_pages` gates access based on total pages proofed in prior rounds.
+
+[[round]]
+id = "P1"
+kind = "proof"
+charset = "vi"
+min_pages = 0
+
+[[round]]
+id = "P2"
+kind = "proof"
+charset = "vi"
+min_pages = 20
+
+[[round]]
+id = "P3"
+kind = "proof"
+charset = "vi"
+min_pages = 100
+
+[[round]]
+id = "F1"
+kind = "format"
+charset = "vi"
+min_pages = 200
+
+[[round]]
+id = "F2"
+kind = "format"
+charset = "vi"
+min_pages = 400
