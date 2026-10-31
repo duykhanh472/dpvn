@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Chi tiết dự án — {{ project.name }} — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{{ project.name }}</h1>
+    {% if user is defined and user %}
+        {% set is_manager_of = user.username == project.manager_username %}
+        {% set is_admin = "admin" in user.roles %}
+        {% if is_manager_of or is_admin %}
+            <div class="action-bar">
+                {% if project.phase == "draft" %}
+                    <a href="/projects/{{ project.id }}/import" class="btn btn-primary">Nhập dữ liệu</a>
+                {% endif %}
+            </div>
+        {% endif %}
+    {% endif %}
+</div>
+
+<div class="detail-grid">
+    <section class="detail-card">
+        <h2>Thông tin dự án</h2>
+        <dl class="detail-list">
+            <dt>Tác giả</dt>
+            <dd>{{ project.author | default("(chưa có)") }}</dd>
+            <dt>Trạng thái</dt>
+            <dd><span class="phase-badge phase-{{ project.phase }}">{{ project.phase }}</span>
+                {% if project.on_hold %}<span class="badge badge-warning">Tạm dừng</span>{% endif %}
+            </dd>
+            {% if project.current_round is defined and project.current_round %}
+            <dt>Vòng hiện tại</dt>
+            <dd>{{ project.current_round }}</dd>
+            {% endif %}
+            <dt>Phong cách dấu thanh</dt>
+            <dd>{{ project.tone_style }}</dd>
+            <dt>Bộ ký tự</dt>
+            <dd>{{ project.charset }}</dd>
+            <dt>Quản lý dự án</dt>
+            <dd>{{ project.manager_username }}</dd>
+            <dt>Số trang</dt>
+            <dd>{{ page_count }}</dd>
+            <dt>Ngày tạo</dt>
+            <dd>{{ project.created_at[:10] }}</dd>
+            <dt>Cập nhật lần cuối</dt>
+            <dd>{{ project.updated_at[:10] }}</dd>
+        </dl>
+    </section>
+</div>
+
+{% if page_count == 0 and project.phase == "draft" %}
+<div class="info-banner">
+    <p>Dự án chưa có trang nào. <a href="/projects/{{ project.id }}/import">Nhập dữ liệu từ tập tin zip</a> để bắt đầu.</p>
+</div>
+{% endif %}
+{% endblock %}

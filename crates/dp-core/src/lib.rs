@@ -6,6 +6,7 @@ pub mod error;
 pub mod ids;
 pub mod project;
 pub mod round;
+pub mod viet;
 
 pub use error::DomainError;
 pub use ids::{PageId, ProjectId, UserId};

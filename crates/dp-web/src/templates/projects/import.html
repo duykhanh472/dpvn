@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Nhập dữ liệu — {{ project.name }} — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Nhập dữ liệu: {{ project.name }}</h1>
+    <a href="/projects/{{ project.id }}" class="btn btn-ghost">← Quay lại dự án</a>
+</div>
+
+{% if error is defined and error %}
+<div class="alert alert-error" role="alert">{{ error }}</div>
+{% endif %}
+
+{% if preview is defined and preview %}
+    {# ── Dry-run preview ── #}
+    <section class="preview-section">
+        <h2>Kết quả phân tích</h2>
+
+        <div class="preview-stats">
+            <div class="stat-card">
+                <span class="stat-value">{{ preview.total_pages }}</span>
+                <span class="stat-label">Trang</span>
+            </div>
+            <div class="stat-card {% if preview.error_count > 0 %}stat-error{% elif preview.warning_pages > 0 %}stat-warn{% else %}stat-ok{% endif %}">
+                <span class="stat-value">{{ preview.error_count }}</span>
+                <span class="stat-label">Lỗi nghiêm trọng</span>
+            </div>
+            <div class="stat-card {% if preview.warning_pages > 0 %}stat-warn{% endif %}">
+                <span class="stat-value">{{ preview.warning_pages }}</span>
+                <span class="stat-label">Trang có cảnh báo</span>
+            </div>
+        </div>
+
+        {% if preview.errors | length > 0 %}
+        <div class="alert alert-error">
+            <strong>Lỗi — không thể nhập dữ liệu:</strong>
+            <ul>
+                {% for err in preview.errors %}
+                <li>{{ err }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if preview.global_warnings | length > 0 %}
+        <div class="alert alert-warning">
+            <strong>Cảnh báo chung:</strong>
+            <ul>
+                {% for w in preview.global_warnings %}
+                <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if preview.pages | length > 0 %}
+        <details class="preview-pages" {% if preview.warning_pages > 0 %}open{% endif %}>
+            <summary>Xem trước từng trang ({{ preview.pages | length }} trang hiển thị)</summary>
+            <div class="page-preview-list">
+                {% for p in preview.pages %}
+                <div class="page-preview-item {% if p.warnings | length > 0 %}has-warnings{% endif %}">
+                    <div class="page-preview-header">
+                        <strong>Trang {{ p.page_number }}</strong>
+                        <span class="page-dim">{{ p.image_entry }} ({{ p.width }}×{{ p.height }}px)</span>
+                    </div>
+                    {% if p.warnings | length > 0 %}
+                    <ul class="page-warnings">
+                        {% for w in p.warnings %}<li>⚠ {{ w }}</li>{% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% if p.first_lines | length > 0 %}
+                    <pre class="page-text-preview">{{ p.first_lines | join("\n") }}</pre>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </details>
+        {% endif %}
+
+        {% if preview.can_commit %}
+        <form method="post" action="/projects/{{ project.id }}/import"
+              enctype="multipart/form-data" class="commit-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="commit">
+            <input type="hidden" name="replace" value="0">
+
+            {# Re-upload is required since we don't persist tmp between requests.
+               The user must re-select the same zip file for commit. #}
+            <div class="form-group">
+                <label for="zip_file_commit" class="form-label">
+                    Tải lại tập tin zip để xác nhận nhập dữ liệu
+                    {% if preview.has_warnings %}
+                    <span class="badge badge-warning">Có cảnh báo — vui lòng xác nhận</span>
+                    {% endif %}
+                </label>
+                <input type="file" id="zip_file_commit" name="zip_file"
+                       accept=".zip" class="form-file" required>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-success">
+                    ✓ Xác nhận nhập {{ preview.total_pages }} trang
+                </button>
+                <a href="/projects/{{ project.id }}/import" class="btn btn-ghost">Hủy</a>
+            </div>
+        </form>
+        {% else %}
+        <p class="error-note">Vui lòng sửa các lỗi trên rồi tải lại tập tin zip.</p>
+        {% endif %}
+    </section>
+
+{% else %}
+    {# ── Upload form ── #}
+    <section class="upload-section">
+        <div class="info-banner">
+            <h3>Định dạng tập tin zip được chấp nhận</h3>
+            <div class="format-grid">
+                <div class="format-card">
+                    <strong>Định dạng A — File ghép đôi</strong>
+                    <pre>0001.png  0001.txt
+0002.png  0002.txt
+...</pre>
+                </div>
+                <div class="format-card">
+                    <strong>Định dạng B — Ảnh + file văn bản</strong>
+                    <pre>images/0001.png
+images/0002.png
+text.txt:
+  &lt;&lt;&lt;PAGE:0001&gt;&gt;&gt;
+  Nội dung trang một...
+  &lt;&lt;&lt;PAGE:0002&gt;&gt;&gt;
+  Nội dung trang hai...</pre>
+                </div>
+            </div>
+            <ul class="upload-limits">
+                <li>Tối đa 5.000 trang mỗi lần nhập</li>
+                <li>Dung lượng giải nén tối đa 4 GB</li>
+                <li>Ảnh PNG hoặc JPEG, kích thước 200×200 đến 10.000×10.000 px</li>
+                <li>Văn bản UTF-8 hợp lệ</li>
+            </ul>
+        </div>
+
+        <form method="post" action="/projects/{{ project.id }}/import"
+              enctype="multipart/form-data" class="form-card">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="action" value="preview">
+
+            <div class="form-group">
+                <label for="zip_file" class="form-label">
+                    Chọn tập tin zip <span class="required">*</span>
+                </label>
+                <input type="file" id="zip_file" name="zip_file"
+                       accept=".zip" class="form-file" required>
+                <p class="form-hint">Tối đa 512 MB</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Phân tích và xem trước</button>
+                <a href="/projects/{{ project.id }}" class="btn btn-ghost">Hủy</a>
+            </div>
+        </form>
+    </section>
+{% endif %}
+{% endblock %}

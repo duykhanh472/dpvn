@@ -3,6 +3,8 @@
 pub mod app;
 pub mod auth;
 pub mod config;
+pub mod ingest;
+pub mod jobs;
 pub mod manifest;
 pub mod middleware;
 pub mod routes;

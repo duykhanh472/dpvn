@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Tạo dự án mới — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Tạo dự án mới</h1>
+</div>
+
+{% if error is defined and error %}
+<div class="alert alert-error" role="alert">{{ error }}</div>
+{% endif %}
+
+<form method="post" action="/projects/new" class="form-card" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+    <div class="form-group">
+        <label for="name" class="form-label">Tên dự án <span class="required">*</span></label>
+        <input type="text" id="name" name="name" class="form-input" required
+               maxlength="255" placeholder="Ví dụ: Truyện Kiều">
+    </div>
+
+    <div class="form-group">
+        <label for="author" class="form-label">Tác giả</label>
+        <input type="text" id="author" name="author" class="form-input"
+               maxlength="255" placeholder="Ví dụ: Nguyễn Du">
+    </div>
+
+    <div class="form-group">
+        <label for="tone_style" class="form-label">Phong cách dấu thanh</label>
+        <select id="tone_style" name="tone_style" class="form-select">
+            <option value="either" selected>Tùy ý (mặc định)</option>
+            <option value="old">Kiểu cũ (hòa, thúy)</option>
+            <option value="new">Kiểu mới (hoà, thuý)</option>
+        </select>
+        <p class="form-hint">Xác định cách đặt dấu thanh cho nguyên âm đôi. Chọn "tùy ý" nếu không chắc.</p>
+    </div>
+
+    <div class="form-group">
+        <label for="charset" class="form-label">Bộ ký tự</label>
+        <select id="charset" name="charset" class="form-select">
+            <option value="vi" selected>Tiếng Việt (vi)</option>
+            <option value="vi-fr">Tiếng Việt + Tiếng Pháp (vi-fr)</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="image_source" class="form-label">Nguồn ảnh</label>
+        <input type="text" id="image_source" name="image_source" class="form-input"
+               maxlength="64" placeholder="Ví dụ: Thư viện Quốc gia Việt Nam">
+    </div>
+
+    <div class="form-group">
+        <label for="comments" class="form-label">Ghi chú cho người soát lỗi</label>
+        <textarea id="comments" name="comments" class="form-textarea" rows="4"
+                  placeholder="Hướng dẫn đặc biệt, từ viết tắt, v.v."></textarea>
+    </div>
+
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Tạo dự án</button>
+        <a href="/projects" class="btn btn-ghost">Hủy</a>
+    </div>
+</form>
+{% endblock %}

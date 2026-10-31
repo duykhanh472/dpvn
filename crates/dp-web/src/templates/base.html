@@ -16,8 +16,13 @@
             <a href="/" class="brand-link">DProofreaders VN</a>
             <nav class="nav-links">
                 <a href="/" class="nav-item">Trang chủ</a>
+                <a href="/projects" class="nav-item">Dự án</a>
                 <a href="/healthz" class="nav-item">Trạng thái</a>
                 {% if user is defined and user %}
+                    {% set is_manager = "pm" in user.roles or "admin" in user.roles %}
+                    {% if is_manager %}
+                        <a href="/my/projects" class="nav-item">Dự án của tôi</a>
+                    {% endif %}
                     <span class="user-greeting">Chào, <strong>{{ user.username }}</strong></span>
                     <form method="post" action="/logout" class="inline-form">
                         <button type="submit" class="nav-item nav-btn-logout">Đăng xuất</button>

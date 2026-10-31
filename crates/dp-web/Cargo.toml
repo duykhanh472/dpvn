@@ -18,8 +18,11 @@ workspace = true
 dp-core = { path = "../dp-core" }
 dp-db = { path = "../dp-db" }
 sqlx = { version = "0.8", default-features = false, features = ["mysql"] }
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1.43", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tower = "0.5"
 minijinja = "3.0"
 minijinja-embed = "3.0"
@@ -47,3 +50,4 @@ minijinja-embed = "3.0"
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
+tempfile = "3"

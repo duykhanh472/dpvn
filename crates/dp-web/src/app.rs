@@ -18,7 +18,7 @@ use crate::{
     config::AppConfig,
     manifest::AssetManifest,
     middleware::set_request_id,
-    routes::{auth, health, home},
+    routes::{auth, health, home, projects},
 };
 
 /// Shared application state injected into Axum route handlers.
@@ -185,6 +185,18 @@ pub fn create_router(state: AppState) -> Router {
         .route("/activate/{token}", get(auth::activate_account))
         .route("/login", get(auth::login_page).post(auth::login_submit))
         .route("/logout", post(auth::logout))
+        // Project routes
+        .route("/projects", get(projects::project_list))
+        .route(
+            "/projects/new",
+            get(projects::new_project_page).post(projects::new_project_submit),
+        )
+        .route("/projects/{id}", get(projects::project_detail))
+        .route(
+            "/projects/{id}/import",
+            get(projects::import_page).post(projects::import_submit),
+        )
+        .route("/my/projects", get(projects::my_projects))
         .layer(middleware::from_fn(set_request_id))
         .with_state(state)
 }

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Danh sách dự án — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">{% if my_projects is defined and my_projects %}Dự án của tôi{% else %}Danh sách dự án{% endif %}</h1>
+    {% if user is defined and user %}
+        {% set is_manager = "pm" in user.roles or "admin" in user.roles %}
+        {% if is_manager %}
+            <a href="/projects/new" class="btn btn-primary">+ Tạo dự án mới</a>
+        {% endif %}
+    {% endif %}
+</div>
+
+{% if projects | length == 0 %}
+    <div class="empty-state">
+        <p>Chưa có dự án nào.{% if user is defined and user %} Hãy <a href="/projects/new">tạo dự án đầu tiên</a>.{% endif %}</p>
+    </div>
+{% else %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Tên dự án</th>
+                    <th>Tác giả</th>
+                    <th>Trạng thái</th>
+                    <th>Vòng hiện tại</th>
+                    <th>Quản lý</th>
+                    <th>Số trang</th>
+                    <th>Ngày tạo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in projects %}
+                <tr>
+                    <td><a href="/projects/{{ p.id }}">{{ p.name }}</a></td>
+                    <td>{{ p.author }}</td>
+                    <td><span class="phase-badge phase-{{ p.phase }}">{{ p.phase }}</span></td>
+                    <td>{{ p.current_round | default("—") }}</td>
+                    <td>{{ p.manager_username }}</td>
+                    <td>{{ p.total_pages }}</td>
+                    <td>{{ p.created_at[:10] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+{% endblock %}
