@@ -35,6 +35,9 @@
         </div>
 
         <div class="toolbar-right">
+            <button type="button" id="btn-toggle-preview" class="btn btn-sm btn-outline"
+                    aria-expanded="false" aria-controls="format-preview"
+                    title="Xem trước bố cục đã định dạng">Xem trước</button>
             {% if not is_readonly %}
                 <form method="post" action="/projects/{{ project_id }}/pages/{{ page_number }}/release" class="inline-form" onsubmit="return confirm('Bạn có chắc muốn nhả trang này lại cho cộng đồng?');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -101,6 +104,36 @@
                 <!-- Initial text storage for JS initialization -->
                 <textarea id="raw-initial-text" style="display:none;" aria-hidden="true">{{ initial_text }}</textarea>
             </div>
+
+            <!-- Format preview pane (Phase 9, Appendix B) -->
+            <section class="proof-preview-panel" id="format-preview" hidden aria-label="Xem trước bố cục">
+                <header class="preview-panel-header">
+                    <h2 class="preview-panel-title">Xem trước bố cục</h2>
+                    <div class="preview-panel-actions">
+                        <form id="format-preview-form" class="inline-form"
+                              hx-post="/projects/{{ project_id }}/pages/{{ page_number }}/preview"
+                              hx-target="#format-preview-body"
+                              hx-swap="innerHTML"
+                              hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'
+                              hx-indicator="#preview-loading">
+                            <textarea id="format-preview-text" name="text" hidden aria-hidden="true"></textarea>
+                            <button type="submit" class="btn btn-sm btn-outline">Cập nhật</button>
+                        </form>
+                        <span id="preview-loading" class="preview-loading htmx-indicator" role="status">Đang dựng…</span>
+                        <button type="button" id="btn-close-preview" class="btn btn-sm btn-outline"
+                                aria-label="Đóng xem trước">&times;</button>
+                    </div>
+                </header>
+                <div id="format-preview-body" class="preview-body" aria-live="polite">
+                    <p class="preview-empty">Bật “Xem trước” để dựng bố cục.</p>
+                </div>
+                <p class="preview-hint">
+                    Hỗ trợ <code>_nghiêng_</code>, <code>*đậm*</code>, <code>=_cả hai_=</code>,
+                    <code>&lt;sc&gt;nhỏ&lt;/sc&gt;</code>, <code># trích dẫn</code>,
+                    <code>/&gt; thơ</code>, <code>----</code>,
+                    chú thích <code>[Footnote 1: …]</code>.
+                </p>
+            </section>
 
             <!-- Issue & Confirm panel -->
             <div class="proof-issues-wrapper" id="issues-wrapper" style="display:none;" aria-live="polite">

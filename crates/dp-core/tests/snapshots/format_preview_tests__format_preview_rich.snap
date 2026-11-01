@@ -1,0 +1,6 @@
+---
+source: crates/dp-core/tests/format_preview_tests.rs
+expression: render_preview(RICH_PAGE)
+---
+<p>Truyện Kiều — Nguyễn Du</p><p><i>Trăm năm</i> trong cõi người ta,
+<b>Chữ tài</b> chữ mệnh khéo là ghét nhau.<sup class="fnref" id="fnref-1"><a href="#fn-1" rel="noopener noreferrer">1</a></sup></p><blockquote><p>Đoạn trích</p></blockquote><div class="poetry"><div class="poem-line">  Người ta là hoa đất</div><div class="poem-line">    Đất lành chim đậu</div></div><hr><p><span class="sc">HẾT</span>.</p><ol class="footnotes"><li id="fn-1" value="1"><span class="fn-text">Câu mở đầu của truyện.</span> <a class="fn-back" href="#fnref-1" aria-label="Quay lại ghi chú" rel="noopener noreferrer">↩</a></li></ol>

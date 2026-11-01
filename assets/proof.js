@@ -75,9 +75,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const csrfToken = root.dataset.csrfToken || "";
     const isReadonly = root.dataset.readonly === "1";
 
+    const previewPanel = document.getElementById("format-preview");
+    const previewToggle = document.getElementById("btn-toggle-preview");
+
     let isDirty = false;
     let editorView = null;
     let confirmedHash = null;
+    let previewVisible = false;
 
     // 1. Initialize CodeMirror 6
     const rawTextEl = document.getElementById("raw-initial-text");
@@ -101,6 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!editorView.composing) {
                 scheduleWordcheck();
             }
+            schedulePreview();
         }
     });
 
@@ -237,7 +242,75 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // 7. Save Page Flow (§9.5, §14.4)
+    // 7. Format Preview Pane (§19 Phase 9, Appendix B)
+    let previewTimeout = null;
+
+    if (previewToggle) {
+        previewToggle.addEventListener("click", () => setPreviewVisible(!previewVisible));
+    }
+    document.getElementById("btn-close-preview")?.addEventListener("click", () => {
+        setPreviewVisible(false);
+        editorView.focus();
+    });
+
+    function setPreviewVisible(show) {
+        previewVisible = show;
+        if (!previewPanel) return;
+        previewPanel.hidden = !show;
+        if (previewToggle) {
+            previewToggle.setAttribute("aria-expanded", show ? "true" : "false");
+            previewToggle.classList.toggle("is-active", show);
+        }
+        if (show) {
+            runPreview();
+        }
+    }
+
+    function schedulePreview() {
+        if (!previewVisible) return;
+        if (previewTimeout) clearTimeout(previewTimeout);
+        previewTimeout = setTimeout(runPreview, 400);
+    }
+
+    async function runPreview() {
+        if (!previewPanel || !previewVisible || !editorView || editorView.composing) return;
+
+        const text = editorView.state.doc.toString();
+        const textarea = document.getElementById("format-preview-text");
+        if (textarea) textarea.value = text;
+
+        const form = document.getElementById("format-preview-form");
+        if (window.htmx && form) {
+            // HTMX owns the request and the swap; hx-headers carries the CSRF token.
+            form.requestSubmit();
+            return;
+        }
+
+        // Fallback for environments where HTMX is unavailable (e.g. asset stub).
+        const body = document.getElementById("format-preview-body");
+        if (!body) return;
+        try {
+            const payload = new URLSearchParams({ text, csrf_token: csrfToken });
+            const resp = await fetch(
+                `/projects/${projectId}/pages/${pageNumber}/preview`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-CSRF-Token": csrfToken,
+                    },
+                    body: payload,
+                }
+            );
+            if (resp.ok) {
+                body.innerHTML = await resp.text();
+            }
+        } catch (err) {
+            console.debug("Format preview skipped:", err);
+        }
+    }
+
+    // 8. Save Page Flow (§9.5, §14.4)
     async function savePage(overrideHash = null) {
         if (isReadonly) return;
         const text = editorView.state.doc.toString();
@@ -316,10 +389,10 @@ document.addEventListener("DOMContentLoaded", () => {
         saveBtn.addEventListener("click", () => savePage());
     }
 
-    // 8. Draggable Split Resizing (§14.1)
+    // 9. Draggable Split Resizing (§14.1)
     initSplitResize();
 
-    // 9. Image Viewer (Zoom, Pan, Rotate)
+    // 10. Image Viewer (Zoom, Pan, Rotate)
     initImageViewer();
 });
 

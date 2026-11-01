@@ -1,0 +1,7 @@
+<div class="format-preview" aria-live="polite">
+    {% if is_empty %}
+        <p class="preview-empty">Chưa có nội dung để xem trước.</p>
+    {% else %}
+        {{ preview_html | safe }}
+    {% endif %}
+</div>

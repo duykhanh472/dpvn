@@ -13,7 +13,8 @@ use axum::{
     response::{Html, IntoResponse, Redirect, Response},
 };
 use dp_core::{
-    CharsetCatalog, RoundId, RoundsConfig, ToneStyle, WordcheckContext, check_page_text, viet,
+    CharsetCatalog, RoundId, RoundsConfig, ToneStyle, WordcheckContext, check_page_text,
+    render_preview, viet,
     wordcheck::{WordIssue, validate_characters},
 };
 use dp_db::queries::{
@@ -66,6 +67,15 @@ pub struct WordcheckCheckPayload {
 #[derive(Debug, Deserialize)]
 pub struct ReleaseClaimForm {
     pub csrf_token: String,
+}
+
+/// Realtime format-preview payload.
+#[derive(Debug, Deserialize)]
+pub struct FormatPreviewPayload {
+    /// Draft page text from the editor.
+    pub text: String,
+    /// CSRF token (HTMX may send it as a header instead).
+    pub csrf_token: Option<String>,
 }
 
 /// Calculate SHA-256 hex digest for proofing confirmation binding (§9.5).
@@ -429,6 +439,60 @@ pub async fn proof_wordcheck(
 
     let issues = check_page_text(&normalized, &wc_ctx);
     Ok(Json(issues))
+}
+
+/// `POST /projects/{id}/pages/{n}/preview` — Render the format-preview fragment (§19 Phase 9).
+///
+/// The endpoint is read-only: it renders the submitted draft text with the
+/// locked Appendix B markup and returns an HTMX fragment. CSRF is enforced even
+/// though nothing is persisted, matching §12.4's rule for every non-GET request.
+#[instrument(skip(state, auth, headers, payload))]
+pub async fn proof_format_preview(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((id, page_number)): Path<(u64, i32)>,
+    headers: HeaderMap,
+    Form(payload): Form<FormatPreviewPayload>,
+) -> Result<Response, AppError> {
+    let token = payload
+        .csrf_token
+        .as_deref()
+        .or_else(|| {
+            headers
+                .get("x-csrf-token")
+                .and_then(|value| value.to_str().ok())
+        })
+        .unwrap_or("");
+    if !verify_csrf_token(token, &auth.csrf_token) {
+        return Err(AppError::Forbidden);
+    }
+
+    let data = get_proofing_page_data(&state.db, id, page_number)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    // Preview follows the same visibility rule as the scanned image: the proofer
+    // holding the page and staff may always preview; an available or finished
+    // page is visible to everyone who can reach the project.
+    let is_mine = data.proofer_id == Some(auth.user_id.0);
+    let is_staff = auth.has_role("admin") || auth.has_role("pm") || auth.has_role("pp");
+    let claimed_by_other =
+        data.round_state.as_deref() == Some("in_progress") && !is_mine && !is_staff;
+    if claimed_by_other {
+        return Err(AppError::Forbidden);
+    }
+
+    let normalized = viet::normalize(&payload.text);
+    let preview_html = render_preview(&normalized);
+    let is_empty = preview_html.is_empty();
+
+    let template = state.templates.get_template("proof/_format_preview.html")?;
+    let rendered = template.render(context! {
+        preview_html => preview_html,
+        is_empty => is_empty,
+    })?;
+
+    Ok(Html(rendered).into_response())
 }
 
 /// `POST /projects/{id}/pages/{n}/release` — Proofer voluntarily releases claim back to pool.

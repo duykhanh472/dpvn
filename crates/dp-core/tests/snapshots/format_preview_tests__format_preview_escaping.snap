@@ -1,0 +1,5 @@
+---
+source: crates/dp-core/tests/format_preview_tests.rs
+expression: render_preview(source)
+---
+<p>&lt;script&gt;alert('x')&lt;/script&gt;</p><p>&lt;img src=x onerror=alert(1)&gt;</p>

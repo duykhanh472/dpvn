@@ -277,6 +277,10 @@ pub fn create_router(state: AppState) -> Router {
             post(proof::proof_wordcheck),
         )
         .route(
+            "/projects/{id}/pages/{page_number}/preview",
+            post(proof::proof_format_preview),
+        )
+        .route(
             "/projects/{id}/pages/{page_number}/release",
             post(proof::proof_release),
         )

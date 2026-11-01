@@ -2171,13 +2171,13 @@ Each phase ends with a working, tested increment. No phase is "80% done".
 **Goal:** proofers see the formatted result before saving.
 
 **Tasks**
-- [ ] Lexer for the markup subset (Appendix B)
-- [ ] Parser producing a small AST
-- [ ] HTML renderer with Spanish/French-style nesting rules
-- [ ] Poetry and blockquote handling
-- [ ] `<sc>` small caps, footnote markers
-- [ ] Preview pane (HTMX) in the proofing UI
-- [ ] Fuzz the lexer; snapshot the renderer
+- [x] Lexer for the markup subset (Appendix B)
+- [x] Parser producing a small AST
+- [x] HTML renderer with Spanish/French-style nesting rules
+- [x] Poetry and blockquote handling
+- [x] `<sc>` small caps, footnote markers
+- [x] Preview pane (HTMX) in the proofing UI
+- [x] Fuzz the lexer; snapshot the renderer
 
 **Deliverable:** a preview pane that matches what a post-processor will expect.
 

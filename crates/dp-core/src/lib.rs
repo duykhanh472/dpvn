@@ -5,6 +5,7 @@
 pub mod charset;
 pub mod diff;
 pub mod error;
+pub mod format_preview;
 pub mod ids;
 pub mod markdown;
 pub mod project;
@@ -16,6 +17,7 @@ pub mod wordcheck;
 pub use charset::{Charset, CharsetCatalog};
 pub use diff::{DiffOptions, DiffRow, DiffRowKind, diff_html, diff_rows};
 pub use error::DomainError;
+pub use format_preview::{parse_preview, render_preview};
 pub use ids::{PageId, ProjectId, UserId};
 pub use markdown::render_markdown;
 pub use project::{Phase, ToneStyle};
