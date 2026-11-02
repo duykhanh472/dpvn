@@ -207,8 +207,7 @@ made this work possible.
 
 ## License
 
-This project is licensed under **MIT OR Apache-2.0**, at your option, as declared
-in [`Cargo.toml`](Cargo.toml). Contributions are accepted under the same terms.
+This project is licensed under **The Unlicense**.
 
 ## Acknowledgments
 
