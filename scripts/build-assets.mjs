@@ -35,19 +35,21 @@ const cssResult = await esbuild.build({
     metafile: true,
 });
 
-// 3. Ensure HTMX is available in static/js/htmx.min.js
-const htmxPath = path.join(JS_OUT, "htmx.min.js");
-if (!fs.existsSync(htmxPath)) {
-    // Basic fallback/stub if not fetched yet
-    fs.writeFileSync(
-        htmxPath,
-        "// HTMX library stub (download official htmx.min.js in production)\nconsole.debug('htmx stub loaded');\n"
+// 3. Copy the real HTMX distribution from node_modules (never ship a stub)
+const htmxSource = path.join("node_modules", "htmx.org", "dist", "htmx.min.js");
+if (!fs.existsSync(htmxSource)) {
+    throw new Error(
+        `Missing ${htmxSource}. Run "npm ci" before building assets.`
     );
 }
+const htmxBytes = fs.readFileSync(htmxSource);
+const htmxHash = crypto.createHash("sha256").update(htmxBytes).digest("hex").slice(0, 10);
+const htmxOut = path.join(JS_OUT, `htmx.${htmxHash}.min.js`);
+fs.copyFileSync(htmxSource, htmxOut);
 
 // 4. Generate manifest.json
 const manifest = {
-    "htmx.min.js": "/static/js/htmx.min.js",
+    "htmx.min.js": "/" + htmxOut.replace(/\\/g, "/"),
 };
 
 for (const [outputPath, meta] of Object.entries(jsResult.metafile.outputs)) {

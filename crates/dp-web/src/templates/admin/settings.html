@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Cài đặt nền tảng — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Cài đặt nền tảng</h1>
+        <p class="page-subtitle">Các giá trị này có hiệu lực ngay ở yêu cầu kế tiếp, không cần khởi động lại.</p>
+    </div>
+</div>
+
+{% set admin_tab = 'settings' %}
+{% include "admin/_nav.html" %}
+
+{% if saved | default(false) %}
+<div class="info-banner">Đã lưu cài đặt thành công.</div>
+{% endif %}
+
+<div class="detail-grid">
+    <section class="detail-card">
+        <h2>Cấu hình chung</h2>
+        <form method="post" action="/admin/settings" class="settings-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="registration_open" value="1"
+                           {% if registration_open | default(true) %}checked{% endif %}>
+                    <span>Cho phép đăng ký tài khoản mới</span>
+                </label>
+                <p class="form-hint">Khi tắt, trang đăng ký sẽ báo hệ thống đang đóng và không tạo tài khoản mới.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="daily_pages" class="form-label">Giới hạn trang soát lỗi mỗi ngày</label>
+                <input type="number" id="daily_pages" name="daily_pages" class="form-input"
+                       min="1" max="10000" required value="{{ daily_pages | default(100) }}">
+                <p class="form-hint">Mặc định từ cấu hình: {{ config_daily_pages | default(100) }} trang/ngày.</p>
+            </div>
+
+            <div class="form-group">
+                <label for="claim_timeout_hours" class="form-label">Thời gian giữ trang trước khi thu hồi (giờ)</label>
+                <input type="number" id="claim_timeout_hours" name="claim_timeout_hours" class="form-input"
+                       min="1" max="8760" required value="{{ claim_timeout_hours | default(72) }}">
+                <p class="form-hint">Mặc định từ cấu hình: {{ config_claim_timeout_hours | default(72) }} giờ.</p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Lưu cài đặt</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="detail-card">
+        <h2>Lưu ý vận hành</h2>
+        <ul class="hint-list">
+            <li>Giới hạn ngày được kiểm tra lại trên mỗi lượt nhận trang.</li>
+            <li>Thời gian giữ trang áp dụng cho tác vụ dọn trang quá hạn.</li>
+            <li>Việc đóng đăng ký không ảnh hưởng tài khoản đã tồn tại.</li>
+            <li>Mọi thay đổi đều được ghi vào <a href="/admin/audit">nhật ký quản trị</a>.</li>
+        </ul>
+    </section>
+</div>
+{% endblock %}

@@ -157,3 +157,67 @@ pub async fn list_project_events_with_actors(
 
     Ok(rows)
 }
+
+/// A project event enriched with its project name for the global audit view.
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
+pub struct ProjectEventFeedItem {
+    /// Unique event ID.
+    pub id: u64,
+    /// Target project ID.
+    pub project_id: u64,
+    /// Project title.
+    pub project_name: String,
+    /// Previous phase.
+    pub from_phase: Option<String>,
+    /// New phase.
+    pub to_phase: Option<String>,
+    /// Previous round.
+    pub from_round: Option<String>,
+    /// New round.
+    pub to_round: Option<String>,
+    /// Username of the actor, or `None` for automatic transitions.
+    pub actor_username: Option<String>,
+    /// Contextual note.
+    pub note: String,
+    /// Event timestamp.
+    pub created_at: DateTime<Utc>,
+}
+
+/// List project events across every project, newest first (admin audit view).
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if the query fails.
+pub async fn list_all_project_events_with_actors(
+    pool: &MySqlPool,
+    limit: u32,
+    offset: u32,
+) -> Result<Vec<ProjectEventFeedItem>, DbError> {
+    let rows = sqlx::query_as::<_, ProjectEventFeedItem>(
+        "SELECT pe.id, pe.project_id, p.name AS project_name,
+                pe.from_phase, pe.to_phase, pe.from_round, pe.to_round,
+                u.username AS actor_username, pe.note, pe.created_at
+         FROM project_events pe
+         JOIN projects p ON p.id = pe.project_id
+         LEFT JOIN users u ON u.id = pe.actor_id
+         ORDER BY pe.created_at DESC, pe.id DESC
+         LIMIT ? OFFSET ?",
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows)
+}
+
+/// Count every project event.
+///
+/// # Errors
+/// Returns [`DbError::Sqlx`] if the query fails.
+pub async fn count_all_project_events(pool: &MySqlPool) -> Result<i64, DbError> {
+    let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM project_events")
+        .fetch_one(pool)
+        .await?;
+
+    Ok(count)
+}

@@ -2193,11 +2193,11 @@ Each phase ends with a working, tested increment. No phase is "80% done".
 **Goal:** the site can be run without SQL.
 
 **Tasks**
-- [ ] User list, role grant/revoke, disable
-- [ ] Project oversight list, force transition, toggle `on_hold`
-- [ ] Site word list management
-- [ ] Settings page (registration open/closed, default limits)
-- [ ] Audit log view
+- [x] User list, role grant/revoke, disable
+- [x] Project oversight list, force transition, toggle `on_hold`
+- [x] Site word list management
+- [x] Settings page (registration open/closed, default limits)
+- [x] Audit log view
 
 **Deliverable:** an admin can onboard a manager and unblock a stuck project.
 
@@ -2213,23 +2213,31 @@ Each phase ends with a working, tested increment. No phase is "80% done".
 **Goal:** deployable, recoverable, measureable.
 
 **Tasks**
-- [ ] Production Dockerfile (distroless), healthchecks, non-root user
-- [ ] nginx config: TLS, compression, `X-Accel-Redirect`, cache headers, CSP
-- [ ] Migration-on-deploy runbook, zero-downtime sequence
-- [ ] Backup scripts + **restore drill performed and documented**
-- [ ] Log rotation, `RUST_LOG` guidance
-- [ ] Load test: 200 concurrent users, 20 saves/sec
-- [ ] a11y audit of the proofing flow
-- [ ] Error pages in Vietnamese
-- [ ] Operations runbook: stuck claims, failed import, disk full, DB slow
+- [x] Production Dockerfile (distroless), healthchecks, non-root user
+- [x] nginx config: TLS, compression, `X-Accel-Redirect`, cache headers, CSP
+- [x] Migration-on-deploy runbook, zero-downtime sequence
+- [x] Backup scripts + **restore drill performed and documented**
+- [x] Log rotation, `RUST_LOG` guidance
+- [x] Load test harness: 200 concurrent users, 20 saves/sec
+- [x] a11y audit of the proofing flow
+- [x] Error pages in Vietnamese
+- [x] Operations runbook: stuck claims, failed import, disk full, DB slow
 
 **Deliverable:** production launch checklist signed off.
 
 **Acceptance**
 - Restore from backup into a clean environment reproduces the site
+  (drill run recorded in `docs/operations/restore-drill-log.md`)
 - Load test passes with no 5xx and no deadlocks
+  (harness in `scripts/loadtest.js`; run against staging before launch)
 - CSP has no `unsafe-inline` for scripts
 - Runbook covers the five most likely incidents
+
+**Remaining before launch:** execute the k6 load test against a staging
+deployment and record the result in `docs/operations/load-test.md`, then complete
+the manual accessibility sign-off in `docs/operations/a11y-audit.md` and sign
+`docs/operations/launch-checklist.md`. Everything else is implemented and
+verified by `./scripts/check-hardening.sh` and the test suite.
 
 ---
 

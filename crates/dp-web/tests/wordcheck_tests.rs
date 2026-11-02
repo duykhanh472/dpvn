@@ -364,7 +364,8 @@ async fn test_project_words_overrides_and_crud() {
     assert!(content_type.contains("application/json"));
 
     // 5. Manager removes "shakespeare"
-    let form_delete = format!("action=delete&kind=good&word=shakespeare&csrf_token={mgr_csrf}");
+    let form_delete =
+        format!("action=delete&kind=good&word=shakespeare&confirm=1&csrf_token={mgr_csrf}");
     let req = Request::builder()
         .method("POST")
         .uri(format!("/projects/{project_id}/words"))
@@ -438,7 +439,7 @@ async fn test_admin_site_words_crud_and_cache_refresh() {
     }
 
     // 4. Admin removes the word
-    let form_del = format!("action=delete&kind=bad&word={word}&csrf_token={admin_csrf}");
+    let form_del = format!("action=delete&kind=bad&word={word}&confirm=1&csrf_token={admin_csrf}");
 
     let req = Request::builder()
         .method("POST")

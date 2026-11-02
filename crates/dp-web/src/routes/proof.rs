@@ -35,6 +35,7 @@ use tracing::instrument;
 use crate::{
     app::{AppError, AppState},
     auth::{AuthUser, csrf::verify_csrf_token},
+    settings::SiteSettings,
 };
 
 /// Payload sent when saving a proofed page.
@@ -108,7 +109,10 @@ pub async fn proof_entry(
         .ok_or_else(|| AppError::BadRequest("Dự án chưa có vòng hoạt động.".to_string()))?;
 
     // 2. Check daily limit
-    check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await?;
+    let daily_limit = SiteSettings::load(&state.db, &state.config.limits)
+        .await?
+        .daily_pages;
+    check_daily_limit(&state.db, auth.user_id.0, daily_limit).await?;
 
     // 3. If user already holds a page in this project, redirect directly to it
     if let Some(active) = get_user_active_claim(&state.db, auth.user_id.0).await? {
@@ -177,11 +181,12 @@ pub async fn proof_page(
     let is_manager = auth.has_role("admin") || auth.has_role("pm");
     let mut page_state = data.round_state.as_deref().unwrap_or("available");
     let is_mine = data.proofer_id == Some(auth.user_id.0);
+    let site_settings = SiteSettings::load(&state.db, &state.config.limits).await?;
 
     // 2. Handle claim transition if page is currently available
     if page_state == "available" {
         // Check daily limit before claiming
-        check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await?;
+        check_daily_limit(&state.db, auth.user_id.0, site_settings.daily_pages).await?;
 
         // If user already has an active claim on a different page, redirect to that
         if let Some(active) = get_user_active_claim(&state.db, auth.user_id.0).await? {
@@ -255,7 +260,7 @@ pub async fn proof_page(
         initial_text => initial_text,
         palette => palette_chars,
         daily_tally => daily_tally,
-        daily_limit => state.config.limits.daily_pages,
+        daily_limit => site_settings.daily_pages,
         csrf_token => auth.csrf_token,
         user => minijinja::context! {
             username => auth.username.clone(),

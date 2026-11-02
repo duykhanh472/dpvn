@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Nhật ký quản trị — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Nhật ký hoạt động</h1>
+        <p class="page-subtitle">Mọi thao tác quản trị phá hủy và mọi chuyển trạng thái dự án đều được ghi lại.</p>
+    </div>
+</div>
+
+{% set admin_tab = 'audit' %}
+{% include "admin/_nav.html" %}
+
+<div class="tab-bar">
+    <a href="{{ admin_tab_url | default('/admin/audit?tab=admin') }}"
+       class="tab-item{% if (tab | default('admin')) == 'admin' %} is-active{% endif %}">
+        Thao tác quản trị <span class="tab-count">{{ admin_count | default(0) }}</span>
+    </a>
+    <a href="{{ projects_tab_url | default('/admin/audit?tab=projects') }}"
+       class="tab-item{% if (tab | default('admin')) == 'projects' %} is-active{% endif %}">
+        Sự kiện dự án <span class="tab-count">{{ project_count | default(0) }}</span>
+    </a>
+</div>
+
+<section class="detail-card">
+    <div class="table-meta">
+        <span class="count-badge">Tổng số: <strong>{{ total_count | default(0) }}</strong> bản ghi</span>
+        <span class="muted">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+    </div>
+
+    {% if (tab | default('admin')) == 'projects' %}
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Thời điểm</th>
+                    <th>Dự án</th>
+                    <th>Chuyển trạng thái</th>
+                    <th>Người thực hiện</th>
+                    <th>Ghi chú</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if events | default([]) %}
+                    {% for event in events %}
+                    <tr>
+                        <td class="nowrap">{{ event.created_at_label }}</td>
+                        <td><a href="/projects/{{ event.project_id }}" class="project-link">{{ event.project_name }}</a></td>
+                        <td>
+                            <span class="event-change">
+                                <span class="badge">{{ event.from_phase | phase_label }}</span>
+                                <span aria-hidden="true">&rarr;</span>
+                                <span class="badge">{{ event.to_phase | phase_label }}</span>
+                            </span>
+                            {% if event.from_round or event.to_round %}
+                            <span class="cell-sub">
+                                {{ event.from_round or '—' }} &rarr; {{ event.to_round or '—' }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>{{ event.actor_username }}</td>
+                        <td class="muted">{{ event.note }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Chưa có sự kiện dự án nào.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Thời điểm</th>
+                    <th>Người thực hiện</th>
+                    <th>Hành động</th>
+                    <th>Đối tượng</th>
+                    <th>Chi tiết</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if actions | default([]) %}
+                    {% for action in actions %}
+                    <tr>
+                        <td class="nowrap">{{ action.created_at_label }}</td>
+                        <td>{{ action.actor_username }}</td>
+                        <td><span class="badge badge-role">{{ action.action_label }}</span></td>
+                        <td>
+                            {% if action.target_type == "user" %}
+                                <span class="badge">Người dùng #{{ action.target_id or '—' }}</span>
+                            {% elif action.target_type == "project" %}
+                                <a href="/projects/{{ action.target_id or '' }}" class="project-link">Dự án #{{ action.target_id or '—' }}</a>
+                            {% elif action.target_type == "settings" %}
+                                <span class="badge">Cài đặt nền tảng</span>
+                            {% elif action.target_type == "site_word" %}
+                                <span class="badge">Từ điển hệ thống</span>
+                            {% else %}
+                                <span class="badge">{{ action.target_type }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="muted">{{ action.detail }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Chưa có thao tác quản trị nào.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if has_previous | default(false) or has_next | default(false) %}
+    <div class="pagination">
+        {% if has_previous | default(false) %}
+            <a href="{{ previous_url }}" class="btn btn-sm">&larr; Trước</a>
+        {% endif %}
+        <span class="pagination-status">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+        {% if has_next | default(false) %}
+            <a href="{{ next_url }}" class="btn btn-sm">Sau &rarr;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

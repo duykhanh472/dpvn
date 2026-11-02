@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Giám sát dự án — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Giám sát dự án</h1>
+        <p class="page-subtitle">Buộc chuyển trạng thái hoặc tạm dừng dự án khi cần can thiệp.</p>
+    </div>
+</div>
+
+{% set admin_tab = 'projects' %}
+{% include "admin/_nav.html" %}
+
+<section class="detail-card">
+    <form method="get" action="/admin/projects" class="filter-bar">
+        <label class="filter-field filter-field-grow">
+            <span>Tìm kiếm</span>
+            <input type="search" name="q" value="{{ filter_q | default('') }}" class="form-input"
+                   placeholder="Tên sách hoặc tác giả…">
+        </label>
+        <label class="filter-field">
+            <span>Trạng thái</span>
+            <select name="phase" class="form-input form-select">
+                {% for option in phase_options | default([]) %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="filter-field">
+            <span>Mỗi trang</span>
+            <select name="per" class="form-input form-select">
+                {% for option in per_options | default([]) %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Lọc</button>
+            <a href="/admin/projects" class="btn btn-outline">Đặt lại</a>
+        </div>
+    </form>
+
+    <div class="table-meta">
+        <span class="count-badge">Tổng số: <strong>{{ total_count | default(0) }}</strong> dự án</span>
+        <span class="muted">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+    </div>
+
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Dự án</th>
+                    <th>Trạng thái</th>
+                    <th>Tiến độ</th>
+                    <th>Quản lý</th>
+                    <th class="text-right">Can thiệp</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if projects | default([]) %}
+                    {% for p in projects %}
+                    <tr>
+                        <td>
+                            <a href="/projects/{{ p.id }}" class="project-link">{{ p.name }}</a>
+                            <span class="cell-sub">{{ p.author }}</span>
+                            <span class="cell-sub">Cập nhật {{ p.updated_at_label }}</span>
+                        </td>
+                        <td>
+                            <span class="phase-badge phase-{{ p.phase }}">{{ p.phase | phase_label }}</span>
+                            {% if p.current_round %}<span class="badge">{{ p.current_round | round_label }}</span>{% endif %}
+                            {% if p.on_hold == 1 %}<span class="badge badge-warning">Tạm dừng</span>{% endif %}
+                        </td>
+                        <td class="progress-cell">
+                            <span class="progress-text">{{ p.done_pages }} / {{ p.total_pages }} trang</span>
+                            <span class="cell-sub">{{ p.available_pages }} chờ · {{ p.in_progress_pages }} đang làm</span>
+                        </td>
+                        <td>{{ p.manager_username }}</td>
+                        <td>
+                            <div class="action-stack">
+                                {% if p.can_transition %}
+                                <form method="post" action="/admin/projects/{{ p.id }}/transition" class="inline-form transition-form"
+                                      data-confirm="Buộc chuyển trạng thái dự án {{ p.name }}?">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="confirm" value="1">
+                                    <select name="target_phase" class="form-input form-select form-select-sm" required>
+                                        {% for target in p.targets %}
+                                        <option value="{{ target.value }}">{{ target.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary">Chuyển</button>
+                                </form>
+                                {% endif %}
+                                {% if p.on_hold == 1 %}
+                                <form method="post" action="/admin/projects/{{ p.id }}/hold" class="inline-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline">Kích hoạt lại</button>
+                                </form>
+                                {% else %}
+                                <form method="post" action="/admin/projects/{{ p.id }}/hold" class="inline-form"
+                                      data-confirm="Tạm dừng dự án {{ p.name }}? Người soát lỗi sẽ không nhận thêm trang.">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="confirm" value="1">
+                                    <button type="submit" class="btn btn-sm btn-danger">Tạm dừng</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Không tìm thấy dự án phù hợp.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if has_previous | default(false) or has_next | default(false) %}
+    <div class="pagination">
+        {% if has_previous | default(false) %}
+            <a href="{{ previous_url }}" class="btn btn-sm">&larr; Trước</a>
+        {% endif %}
+        <span class="pagination-status">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+        {% if has_next | default(false) %}
+            <a href="{{ next_url }}" class="btn btn-sm">Sau &rarr;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

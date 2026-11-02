@@ -167,6 +167,8 @@ pub struct ProjectListFilter<'a> {
     pub manager_id: Option<u64>,
     /// Restrict to projects whose current round matches.
     pub round: Option<&'a str>,
+    /// Restrict to an exact lifecycle phase (`draft`, `queued`, …).
+    pub phase: Option<&'a str>,
     /// `available`, `in_progress`, `complete`, or `finished`.
     pub availability: Option<&'a str>,
     /// Case/accent-sensitive substring match on name or author.
@@ -203,6 +205,10 @@ fn push_project_filters(qb: &mut QueryBuilder<'_, MySql>, filter: &ProjectListFi
     if let Some(round) = filter.round {
         qb.push(" AND p.current_round = ")
             .push_bind(round.to_owned());
+    }
+
+    if let Some(phase) = filter.phase {
+        qb.push(" AND p.phase = ").push_bind(phase.to_owned());
     }
 
     match filter.availability {

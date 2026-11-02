@@ -13,7 +13,14 @@
     </div>
     {% endif %}
 
-    {% if success is defined and success %}
+    {% if registration_open is defined and not registration_open %}
+    <div class="alert alert-warning" role="status">
+        Đăng ký tài khoản đang tạm đóng. Vui lòng quay lại sau hoặc liên hệ quản trị viên.
+    </div>
+    <div class="auth-footer">
+        <p>Đã có tài khoản? <a href="/login">Đăng nhập ngay</a></p>
+    </div>
+    {% elif success is defined and success %}
     <div class="alert alert-success">
         {{ success }}
     </div>

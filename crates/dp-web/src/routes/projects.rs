@@ -29,6 +29,7 @@ use crate::{
     auth::{AuthUser, ManagerUser, verify_csrf_token},
     format_vietnam_time,
     ingest::{self, preview::IngestPreview},
+    settings::SiteSettings,
 };
 
 // ─── New project form ────────────────────────────────────────────────────────
@@ -132,9 +133,10 @@ pub async fn project_detail(
         .ok_or(AppError::NotFound)?;
 
     let progress = get_project_progress(&state.db, id, project.current_round.as_deref()).await?;
+    let site_settings = SiteSettings::load(&state.db, &state.config.limits).await?;
     let daily_tally =
         get_total_daily_tally(&state.db, auth.user_id.0, current_vietnam_date()).await?;
-    let daily_limit = state.config.limits.daily_pages;
+    let daily_limit = site_settings.daily_pages;
     let limit_reached = daily_tally >= daily_limit;
 
     let notice = match (query.notice.as_deref(), query.empty.as_deref()) {
@@ -547,6 +549,7 @@ async fn render_project_list(
     let count_filter = ProjectListFilter {
         manager_id: mode.my_projects.then_some(auth.user_id.0),
         round: round.as_deref(),
+        phase: None,
         availability: (availability != "all").then_some(availability),
         search,
         sort,
@@ -690,7 +693,9 @@ async fn render_project_list(
 
     let daily_tally =
         get_total_daily_tally(&state.db, auth.user_id.0, current_vietnam_date()).await?;
-    let daily_limit = state.config.limits.daily_pages;
+    let daily_limit = SiteSettings::load(&state.db, &state.config.limits)
+        .await?
+        .daily_pages;
 
     let ctx = minijinja::context! {
         user => minijinja::context! {
@@ -941,7 +946,10 @@ pub async fn project_claim_submit(
     }
 
     // Check daily limit; send the user back with a clear, actionable message.
-    match check_daily_limit(&state.db, auth.user_id.0, state.config.limits.daily_pages).await {
+    let daily_limit = SiteSettings::load(&state.db, &state.config.limits)
+        .await?
+        .daily_pages;
+    match check_daily_limit(&state.db, auth.user_id.0, daily_limit).await {
         Ok(()) => {}
         Err(DbError::Domain(dp_core::DomainError::DailyLimitReached { .. })) => {
             return Ok(

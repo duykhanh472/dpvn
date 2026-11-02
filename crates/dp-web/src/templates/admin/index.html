@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Bảng điều khiển quản trị — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Bảng điều khiển quản trị</h1>
+        <p class="page-subtitle">Quản lý người dùng, dự án, từ điển hệ thống và cấu hình nền tảng.</p>
+    </div>
+</div>
+
+{% include "admin/_nav.html" %}
+
+<div class="stat-grid">
+    <a href="/admin/users" class="stat-card">
+        <span class="stat-value">{{ total_users | default(0) }}</span>
+        <span class="stat-label">Tổng người dùng</span>
+    </a>
+    <a href="/admin/users?status=active" class="stat-card">
+        <span class="stat-value">{{ active_users | default(0) }}</span>
+        <span class="stat-label">Đang hoạt động</span>
+    </a>
+    <a href="/admin/users?status=pending" class="stat-card">
+        <span class="stat-value">{{ pending_users | default(0) }}</span>
+        <span class="stat-label">Chờ kích hoạt</span>
+    </a>
+    <a href="/admin/users?role=admin" class="stat-card">
+        <span class="stat-value">{{ active_admins | default(0) }}</span>
+        <span class="stat-label">Quản trị viên hoạt động</span>
+    </a>
+    <a href="/admin/projects" class="stat-card">
+        <span class="stat-value">{{ total_projects | default(0) }}</span>
+        <span class="stat-label">Dự án</span>
+    </a>
+    <a href="/admin/audit" class="stat-card">
+        <span class="stat-value">{{ admin_action_count | default(0) }}</span>
+        <span class="stat-label">Thao tác quản trị đã ghi</span>
+    </a>
+    <a href="/admin/audit?tab=projects" class="stat-card">
+        <span class="stat-value">{{ project_event_count | default(0) }}</span>
+        <span class="stat-label">Sự kiện dự án</span>
+    </a>
+</div>
+
+<div class="detail-grid">
+    <section class="detail-card">
+        <h2>Thao tác quản trị gần đây</h2>
+        {% if recent_actions | default([]) %}
+        <ul class="event-list">
+            {% for action in recent_actions %}
+            <li class="event-item">
+                <span class="event-time">{{ action.created_at_label }}</span>
+                <span class="event-actor">{{ action.actor_username }}</span>
+                <span class="badge">{{ action.action_label }}</span>
+                <span class="event-note">{{ action.detail }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-state">Chưa có thao tác quản trị nào.</p>
+        {% endif %}
+        <p class="card-footer-link"><a href="/admin/audit">Xem toàn bộ nhật ký &rarr;</a></p>
+    </section>
+
+    <section class="detail-card">
+        <h2>Sự kiện dự án gần đây</h2>
+        {% if recent_events | default([]) %}
+        <ul class="event-list">
+            {% for event in recent_events %}
+            <li class="event-item">
+                <span class="event-time">{{ event.created_at_label }}</span>
+                <a href="/projects/{{ event.project_id }}" class="project-link">{{ event.project_name }}</a>
+                <span class="event-change">
+                    <span class="badge">{{ event.from_phase | phase_label }}</span>
+                    <span aria-hidden="true">&rarr;</span>
+                    <span class="badge">{{ event.to_phase | phase_label }}</span>
+                </span>
+                <span class="event-note">{{ event.actor_username }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="empty-state">Chưa có sự kiện dự án nào.</p>
+        {% endif %}
+        <p class="card-footer-link"><a href="/admin/audit?tab=projects">Xem toàn bộ sự kiện &rarr;</a></p>
+    </section>
+</div>
+{% endblock %}

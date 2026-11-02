@@ -4,6 +4,8 @@ use lexopt::prelude::*;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -24,6 +26,9 @@ enum Command {
         replace: bool,
     },
     Verify,
+    Healthcheck {
+        url: Option<String>,
+    },
 }
 
 fn print_help() {
@@ -40,6 +45,10 @@ COMMANDS:
     create-admin <username>          Bootstrap an administrator account
     import-project <zip-path>        Import scanned book package
     verify                           Verify configuration, templates, and database
+    healthcheck [--url <URL>]        Probe /healthz (used by Docker HEALTHCHECK)
+
+healthcheck OPTIONS:
+    --url <URL>                      Probe URL (default: http://127.0.0.1:<bind>/healthz)
 
 import-project OPTIONS:
     --name <TITLE>                   Book title (required)
@@ -57,14 +66,23 @@ OPTIONS:
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Initialize tracing
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,dp_web=debug,dp_db=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    // Initialize tracing. `DP_LOG_FORMAT=json` emits one JSON object per line,
+    // which is what container platforms expect (§21.4).
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info,dp_web=info,dp_db=warn".into());
+    let registry = tracing_subscriber::registry().with(filter);
+    if std::env::var("DP_LOG_FORMAT").is_ok_and(|value| value.eq_ignore_ascii_case("json")) {
+        registry
+            .with(
+                tracing_subscriber::fmt::layer()
+                    .json()
+                    .with_current_span(true)
+                    .with_span_list(true),
+            )
+            .init();
+    } else {
+        registry.with(tracing_subscriber::fmt::layer()).init();
+    }
 
     let mut config_path: Option<PathBuf> = None;
     let mut command: Option<Command> = None;
@@ -102,6 +120,31 @@ async fn main() -> ExitCode {
                     "migrate" => command = Some(Command::Migrate),
                     "prune" => command = Some(Command::Prune),
                     "verify" => command = Some(Command::Verify),
+                    "healthcheck" => {
+                        let mut url = None;
+                        while let Some(flag) = parser.next().unwrap_or(None) {
+                            match flag {
+                                Long("url") => {
+                                    url = Some(
+                                        parser
+                                            .value()
+                                            .unwrap_or_else(|_| {
+                                                eprintln!("Error: --url requires a value");
+                                                std::process::exit(1);
+                                            })
+                                            .string()
+                                            .unwrap_or_default(),
+                                    );
+                                }
+                                other => {
+                                    eprintln!("Error: unexpected flag {other:?}");
+                                    return ExitCode::FAILURE;
+                                }
+                            }
+                        }
+                        command = Some(Command::Healthcheck { url });
+                        break;
+                    }
                     "create-admin" => {
                         let user_arg = parser.value().unwrap_or_else(|_| {
                             eprintln!("Error: create-admin requires a <username> argument");
@@ -237,8 +280,9 @@ async fn main() -> ExitCode {
                 }
             };
 
-            let manifest_path = Path::new("static/manifest.json");
-            let manifest = Arc::new(AssetManifest::from_file(manifest_path));
+            let manifest_path = std::env::var("DP_MANIFEST_PATH")
+                .unwrap_or_else(|_| "static/manifest.json".to_string());
+            let manifest = Arc::new(AssetManifest::from_file(Path::new(&manifest_path)));
 
             let templates = match create_template_env(&config, manifest.clone()) {
                 Ok(t) => Arc::new(t),
@@ -272,10 +316,14 @@ async fn main() -> ExitCode {
             };
 
             tracing::info!(bind = %config.server.bind, "server listening for requests");
-            if let Err(e) = axum::serve(listener, router).await {
+            if let Err(e) = axum::serve(listener, router)
+                .with_graceful_shutdown(shutdown_signal())
+                .await
+            {
                 eprintln!("Server error: {e}");
                 return ExitCode::FAILURE;
             }
+            tracing::info!("server stopped cleanly");
         }
         Command::Migrate => {
             println!("Connecting to database for migration...");
@@ -311,12 +359,16 @@ async fn main() -> ExitCode {
                     }
                 };
 
+            let site_settings = dp_web::SiteSettings::load(&pool, &config.limits)
+                .await
+                .unwrap_or_else(|_| dp_web::SiteSettings::from_defaults(&config.limits));
+
             let result = dp_web::jobs::prune::run_all(
                 &pool,
                 &config.paths.data.to_string_lossy(),
                 24, // orphan_age_hours
                 7,  // pending_user_days
-                config.limits.claim_timeout_hours,
+                site_settings.claim_timeout_hours,
             )
             .await;
 
@@ -537,7 +589,180 @@ async fn main() -> ExitCode {
             }
             println!("Configuration OK.");
         }
+        Command::Healthcheck { url } => {
+            let target = url
+                .or_else(|| std::env::var("DP_HEALTHCHECK_URL").ok())
+                .unwrap_or_else(|| default_healthcheck_url(&config.server.bind));
+
+            match http_get_ok(&target).await {
+                Ok(()) => {
+                    println!("OK {target}");
+                }
+                Err(e) => {
+                    eprintln!("Healthcheck failed for {target}: {e}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
     }
 
     ExitCode::SUCCESS
+}
+
+/// Resolve when the process receives SIGINT or SIGTERM.
+///
+/// Graceful shutdown lets in-flight saves finish and the connection pool close
+/// cleanly during a rolling deploy (§21.3).
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "could not install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
+    }
+
+    tracing::info!("shutdown signal received; draining in-flight requests");
+}
+
+/// Build the default probe URL from the configured bind address.
+fn default_healthcheck_url(bind: &str) -> String {
+    let port = bind.rsplit(':').next().unwrap_or("8080");
+    if bind.starts_with("0.0.0.0:") || bind.starts_with("[::]:") || bind.starts_with(":::") {
+        format!("http://127.0.0.1:{port}/healthz")
+    } else {
+        format!("http://{bind}/healthz")
+    }
+}
+
+/// Parse an `http://host[:port][/path]` URL without pulling in an HTTP client.
+fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
+    let rest = url
+        .strip_prefix("http://")
+        .ok_or_else(|| "only http:// URLs are supported".to_string())?;
+    let (authority, path) = match rest.find('/') {
+        Some(index) => (&rest[..index], &rest[index..]),
+        None => (rest, "/"),
+    };
+    if authority.is_empty() {
+        return Err("missing host".to_string());
+    }
+
+    let (host, port) = if let Some(after_bracket) = authority.strip_prefix('[') {
+        let (host, remainder) = after_bracket
+            .split_once(']')
+            .ok_or_else(|| "invalid IPv6 authority".to_string())?;
+        let port = match remainder.strip_prefix(':') {
+            Some(value) => value
+                .parse::<u16>()
+                .map_err(|_| "invalid port".to_string())?,
+            None => 80,
+        };
+        (host.to_string(), port)
+    } else if let Some((host, value)) = authority.rsplit_once(':') {
+        (
+            host.to_string(),
+            value
+                .parse::<u16>()
+                .map_err(|_| "invalid port".to_string())?,
+        )
+    } else {
+        (authority.to_string(), 80)
+    };
+
+    Ok((host, port, path.to_string()))
+}
+
+/// Perform a minimal HTTP/1.1 GET and succeed only on a 200 response.
+async fn http_get_ok(url: &str) -> Result<(), String> {
+    let (host, port, path) = parse_http_url(url)?;
+    let connect = tokio::time::timeout(
+        Duration::from_secs(5),
+        tokio::net::TcpStream::connect((host.as_str(), port)),
+    )
+    .await
+    .map_err(|_| "connection timed out".to_string())?
+    .map_err(|e| format!("connection failed: {e}"))?;
+
+    let request =
+        format!("GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\nConnection: close\r\n\r\n");
+    let exchange = async {
+        let mut stream = connect;
+        stream
+            .write_all(request.as_bytes())
+            .await
+            .map_err(|e| format!("write failed: {e}"))?;
+        let mut response = Vec::with_capacity(512);
+        stream
+            .read_to_end(&mut response)
+            .await
+            .map_err(|e| format!("read failed: {e}"))?;
+        Ok::<Vec<u8>, String>(response)
+    };
+
+    let response = tokio::time::timeout(Duration::from_secs(5), exchange)
+        .await
+        .map_err(|_| "response timed out".to_string())??;
+    let head = String::from_utf8_lossy(&response);
+    let status_line = head.lines().next().unwrap_or_default();
+    if status_line.starts_with("HTTP/1.1 200") || status_line.starts_with("HTTP/1.0 200") {
+        Ok(())
+    } else {
+        Err(format!("unexpected response: {status_line}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_http_urls() {
+        assert_eq!(
+            parse_http_url("http://127.0.0.1:8080/healthz").unwrap(),
+            ("127.0.0.1".to_string(), 8080, "/healthz".to_string())
+        );
+        assert_eq!(
+            parse_http_url("http://example.test").unwrap(),
+            ("example.test".to_string(), 80, "/".to_string())
+        );
+        assert_eq!(
+            parse_http_url("http://[::1]:9000/readyz").unwrap(),
+            ("::1".to_string(), 9000, "/readyz".to_string())
+        );
+    }
+
+    #[test]
+    fn rejects_non_http_urls() {
+        assert!(parse_http_url("https://example.test/healthz").is_err());
+    }
+
+    #[test]
+    fn default_probe_url_rewrites_wildcard_binds() {
+        assert_eq!(
+            default_healthcheck_url("0.0.0.0:8080"),
+            "http://127.0.0.1:8080/healthz"
+        );
+        assert_eq!(
+            default_healthcheck_url("127.0.0.1:9000"),
+            "http://127.0.0.1:9000/healthz"
+        );
+    }
 }

@@ -150,7 +150,7 @@
 
     <form class="comment-form" method="post" action="/projects/{{ project.id }}/comments"
           hx-post="/projects/{{ project.id }}/comments" hx-target="#comment-list"
-          hx-swap="beforeend" hx-on::after-request="if (event.detail.successful) this.reset()">
+          hx-swap="beforeend" data-reset-on-success>
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label class="form-label" for="comment-body">Thêm bình luận</label>
         <textarea id="comment-body" name="body_md" class="form-input comment-input" rows="4"

@@ -1,0 +1,9 @@
+{% set admin_tab = admin_tab | default('') %}
+<nav class="admin-nav" aria-label="Điều hướng quản trị">
+    <a href="/admin" class="admin-nav-item{% if admin_tab == 'dashboard' %} is-active{% endif %}">Tổng quan</a>
+    <a href="/admin/users" class="admin-nav-item{% if admin_tab == 'users' %} is-active{% endif %}">Người dùng</a>
+    <a href="/admin/projects" class="admin-nav-item{% if admin_tab == 'projects' %} is-active{% endif %}">Dự án</a>
+    <a href="/admin/words" class="admin-nav-item{% if admin_tab == 'words' %} is-active{% endif %}">Từ điển hệ thống</a>
+    <a href="/admin/settings" class="admin-nav-item{% if admin_tab == 'settings' %} is-active{% endif %}">Cài đặt</a>
+    <a href="/admin/audit" class="admin-nav-item{% if admin_tab == 'audit' %} is-active{% endif %}">Nhật ký</a>
+</nav>

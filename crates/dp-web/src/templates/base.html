@@ -11,10 +11,12 @@
     {% block head %}{% endblock %}
 </head>
 <body class="site-body">
+    <a href="#main-content" class="skip-link">Bỏ qua đến nội dung chính</a>
+    <div id="app-status" class="sr-only" role="status" aria-live="polite"></div>
     <header class="site-header">
         <div class="header-inner">
             <a href="/" class="brand-link">DProofreaders VN</a>
-            <nav class="nav-links">
+            <nav class="nav-links" aria-label="Điều hướng chính">
                 <a href="/" class="nav-item">Trang chủ</a>
                 <a href="/projects" class="nav-item">Dự án</a>
                 <a href="/healthz" class="nav-item">Trạng thái</a>
@@ -24,7 +26,7 @@
                         <a href="/my/projects" class="nav-item">Dự án của tôi</a>
                     {% endif %}
                     {% if "admin" in user.roles %}
-                        <a href="/admin/words" class="nav-item">Từ điển hệ thống</a>
+                        <a href="/admin" class="nav-item">Quản trị</a>
                     {% endif %}
                     <span class="user-greeting">Chào, <strong>{{ user.username }}</strong></span>
                     <form method="post" action="/logout" class="inline-form">
@@ -38,7 +40,7 @@
         </div>
     </header>
 
-    <main class="main-content">
+    <main class="main-content" id="main-content" tabindex="-1">
         {% block content %}{% endblock %}
     </main>
 

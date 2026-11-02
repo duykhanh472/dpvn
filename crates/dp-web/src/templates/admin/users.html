@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Quản lý người dùng — DProofreaders VN{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Quản lý người dùng</h1>
+        <p class="page-subtitle">Cấp hoặc thu hồi quyền, kích hoạt và vô hiệu hóa tài khoản.</p>
+    </div>
+</div>
+
+{% set admin_tab = 'users' %}
+{% include "admin/_nav.html" %}
+
+<section class="detail-card">
+    <form method="get" action="/admin/users" class="filter-bar">
+        <label class="filter-field filter-field-grow">
+            <span>Tìm kiếm</span>
+            <input type="search" name="q" value="{{ filter_q | default('') }}" class="form-input"
+                   placeholder="Tên đăng nhập, email hoặc họ tên…">
+        </label>
+        <label class="filter-field">
+            <span>Quyền</span>
+            <select name="role" class="form-input form-select">
+                <option value="">Tất cả quyền</option>
+                {% for option in role_options | default([]) %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="filter-field">
+            <span>Trạng thái</span>
+            <select name="status" class="form-input form-select">
+                <option value="">Tất cả trạng thái</option>
+                {% for option in status_options | default([]) %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="filter-field">
+            <span>Mỗi trang</span>
+            <select name="per" class="form-input form-select">
+                {% for option in per_options | default([]) %}
+                <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">Lọc</button>
+            <a href="/admin/users" class="btn btn-outline">Đặt lại</a>
+        </div>
+    </form>
+
+    <div class="table-meta">
+        <span class="count-badge">Tổng số: <strong>{{ total_count | default(0) }}</strong> người dùng</span>
+        <span class="muted">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+    </div>
+
+    <div class="table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Người dùng</th>
+                    <th>Trạng thái</th>
+                    <th>Quyền hiện có</th>
+                    <th>Đăng nhập gần nhất</th>
+                    <th class="text-right">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if users | default([]) %}
+                    {% for u in users %}
+                    <tr>
+                        <td>
+                            <strong>{{ u.username }}</strong>
+                            {% if u.is_self %}<span class="badge badge-self">Bạn</span>{% endif %}
+                            <span class="cell-sub">{{ u.real_name }}</span>
+                            <span class="cell-sub">{{ u.email }}</span>
+                        </td>
+                        <td>
+                            {% if u.status == "active" %}
+                                <span class="badge badge-success">Hoạt động</span>
+                            {% elif u.status == "pending" %}
+                                <span class="badge badge-warning">Chờ kích hoạt</span>
+                            {% else %}
+                                <span class="badge badge-danger">Đã vô hiệu hóa</span>
+                            {% endif %}
+                            <span class="cell-sub">Tham gia {{ u.created_at_label }}</span>
+                        </td>
+                        <td class="role-cell">
+                            {% if u.roles %}
+                                {% for role in all_roles | default([]) %}
+                                    {% if role.value in u.roles %}
+                                        <span class="badge badge-role">{{ role.label }}</span>
+                                    {% endif %}
+                                {% endfor %}
+                            {% else %}
+                                <span class="muted">Chưa có quyền</span>
+                            {% endif %}
+                        </td>
+                        <td class="nowrap">{{ u.last_login_label }}</td>
+                        <td>
+                            <div class="action-stack">
+                                <div class="action-group">
+                                    {% for role in all_roles | default([]) %}
+                                        {% if role.value in u.roles %}
+                                        <form method="post" action="/admin/users/{{ u.id }}/roles" class="inline-form"
+                                              data-confirm="Thu hồi quyền {{ role.label }} của {{ u.username }}?">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="action" value="revoke">
+                                            <input type="hidden" name="role" value="{{ role.value }}">
+                                            <input type="hidden" name="confirm" value="1">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Thu hồi {{ role.label }}</button>
+                                        </form>
+                                        {% else %}
+                                        <form method="post" action="/admin/users/{{ u.id }}/roles" class="inline-form">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="action" value="grant">
+                                            <input type="hidden" name="role" value="{{ role.value }}">
+                                            <button type="submit" class="btn btn-sm btn-outline">Cấp {{ role.label }}</button>
+                                        </form>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                <div class="action-group">
+                                    {% if u.status == "active" %}
+                                        {% if not u.is_self %}
+                                        <form method="post" action="/admin/users/{{ u.id }}/status" class="inline-form"
+                                              data-confirm="Vô hiệu hóa tài khoản {{ u.username }}? Người dùng sẽ không thể đăng nhập.">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="status" value="disabled">
+                                            <input type="hidden" name="confirm" value="1">
+                                            <button type="submit" class="btn btn-sm btn-danger">Vô hiệu hóa</button>
+                                        </form>
+                                        {% endif %}
+                                    {% else %}
+                                        <form method="post" action="/admin/users/{{ u.id }}/status" class="inline-form">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                            <input type="hidden" name="status" value="active">
+                                            <button type="submit" class="btn btn-sm btn-outline">Kích hoạt</button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="empty-state">Không tìm thấy người dùng phù hợp.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if has_previous | default(false) or has_next | default(false) %}
+    <div class="pagination">
+        {% if has_previous | default(false) %}
+            <a href="{{ previous_url }}" class="btn btn-sm">&larr; Trước</a>
+        {% endif %}
+        <span class="pagination-status">Trang {{ current_page | default(1) }} / {{ total_pages | default(1) }}</span>
+        {% if has_next | default(false) %}
+            <a href="{{ next_url }}" class="btn btn-sm">Sau &rarr;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

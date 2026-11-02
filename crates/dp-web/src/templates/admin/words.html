@@ -8,6 +8,9 @@
     <p class="page-subtitle">Từ điển chung áp dụng cho mọi dự án soát lỗi trên toàn nền tảng.</p>
 </div>
 
+{% set admin_tab = 'words' %}
+{% include "admin/_nav.html" %}
+
 <div class="detail-grid">
     <!-- Form to add site word -->
     <section class="detail-card">
@@ -80,11 +83,12 @@
                         <td>{{ w.added_by }}</td>
                         <td>{{ w.added_at }}</td>
                         <td class="text-right">
-                            <form method="post" action="/admin/words" class="inline-form" onsubmit="return confirm('Xóa từ này khỏi từ điển toàn hệ thống?');">
+                            <form method="post" action="/admin/words" class="inline-form" data-confirm="Xóa từ này khỏi từ điển toàn hệ thống?">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="kind" value="{{ w.kind }}">
                                 <input type="hidden" name="word" value="{{ w.word }}">
+                                <input type="hidden" name="confirm" value="1">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
                             </form>
                         </td>

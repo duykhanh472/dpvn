@@ -16,7 +16,14 @@
      data-total-pages="{{ total_pages }}"
      data-round="{{ current_round }}"
      data-csrf-token="{{ csrf_token }}"
-     data-readonly="{{ 1 if is_readonly else 0 }}">
+     data-readonly="{{ 1 if is_readonly else 0 }}"
+     aria-describedby="proof-keyboard-help">
+
+    <p id="proof-keyboard-help" class="sr-only">
+        Phím tắt: Ctrl+S để lưu và chuyển trang; dấu cộng/trừ để phóng to/thu nhỏ ảnh;
+        phím 0 để vừa khung; phím R để xoay ảnh; phím mũi tên trái/phải để điều chỉnh
+        tỷ lệ khung hình và văn bản khi con trỏ ở thanh chia.
+    </p>
 
     <!-- Top control toolbar -->
     <header class="proof-toolbar" role="toolbar" aria-label="Thanh công cụ soát lỗi">
@@ -39,11 +46,11 @@
                     aria-expanded="false" aria-controls="format-preview"
                     title="Xem trước bố cục đã định dạng">Xem trước</button>
             {% if not is_readonly %}
-                <form method="post" action="/projects/{{ project_id }}/pages/{{ page_number }}/release" class="inline-form" onsubmit="return confirm('Bạn có chắc muốn nhả trang này lại cho cộng đồng?');">
+                <form method="post" action="/projects/{{ project_id }}/pages/{{ page_number }}/release" class="inline-form" data-confirm="Bạn có chắc muốn nhả trang này lại cho cộng đồng?">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Nhả trang lại để người khác nhận">Nhả trang</button>
                 </form>
-                <button type="button" id="btn-save-page" class="btn btn-sm btn-primary" title="Lưu trang và tiếp tục (Ctrl+S)">
+                <button type="button" id="btn-save-page" class="btn btn-sm btn-primary" title="Lưu trang và tiếp tục (Ctrl+S)" aria-keyshortcuts="Control+S">
                     Lưu &amp; Tiếp tục &rarr;
                 </button>
             {% else %}
@@ -67,12 +74,12 @@
         <!-- Image viewer pane -->
         <section class="proof-image-pane" id="image-pane" aria-label="Bản quét trang sách">
             <div class="image-controls" role="toolbar" aria-label="Điều khiển hình ảnh">
-                <button type="button" class="btn btn-sm" id="btn-zoom-out" title="Thu nhỏ (-)" aria-label="Thu nhỏ">&minus;</button>
-                <button type="button" class="btn btn-sm" id="btn-zoom-in" title="Phóng to (+)" aria-label="Phóng to">&plus;</button>
-                <button type="button" class="btn btn-sm" id="btn-zoom-100" title="Kích thước thực (100%)">100%</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-out" title="Thu nhỏ (-)" aria-label="Thu nhỏ" aria-keyshortcuts="-">&minus;</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-in" title="Phóng to (+)" aria-label="Phóng to" aria-keyshortcuts="+">+</button>
+                <button type="button" class="btn btn-sm" id="btn-zoom-100" title="Kích thước thực (100%)" aria-keyshortcuts="0">100%</button>
                 <button type="button" class="btn btn-sm" id="btn-zoom-200" title="Phóng to 200%">200%</button>
                 <button type="button" class="btn btn-sm" id="btn-zoom-fit" title="Vừa khung hình (0)">Vừa khung</button>
-                <button type="button" class="btn btn-sm" id="btn-rotate" title="Xoay hình 90 độ (R)" aria-label="Xoay 90 độ">&#8635; Xoay</button>
+                <button type="button" class="btn btn-sm" id="btn-rotate" title="Xoay hình 90 độ (R)" aria-label="Xoay 90 độ" aria-keyshortcuts="R">&#8635; Xoay</button>
             </div>
             <div class="image-viewport" id="image-viewport" tabindex="0" role="region" aria-label="Khu vực xem ảnh, kéo để di chuyển">
                 <div class="image-stage" id="image-stage">
@@ -91,6 +98,11 @@
              role="separator"
              tabindex="0"
              aria-orientation="vertical"
+             aria-valuemin="20"
+             aria-valuemax="80"
+             aria-valuenow="50"
+             aria-valuetext="Ảnh 50 phần trăm"
+             aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
              aria-label="Kéo để chia tỷ lệ khung hình ảnh và văn bản"
              title="Kéo sang trái/phải hoặc dùng phím mũi tên để điều chỉnh tỷ lệ">
             <div class="handle-bar"></div>
@@ -152,7 +164,7 @@
             <span id="stat-issues" class="stat-issues-clean">Chính tả: <strong>Sạch</strong></span>
         </div>
         <div class="status-center">
-            <span id="save-status" class="save-status-saved">Đã đồng bộ</span>
+            <span id="save-status" class="save-status-saved" role="status" aria-live="polite">Đã đồng bộ</span>
         </div>
         <div class="status-right">
             <span class="stat-tally">

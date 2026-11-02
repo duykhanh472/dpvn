@@ -429,6 +429,11 @@ function initSplitResize() {
             textPane.style.height = `${100 - currentPct}%`;
         }
         localStorage.setItem("dp_proof_split", currentPct.toString());
+
+        // Keep the separator's accessibility state in sync with the split.
+        const rounded = Math.round(currentPct);
+        handle.setAttribute("aria-valuenow", String(rounded));
+        handle.setAttribute("aria-valuetext", `Ảnh ${rounded} phần trăm`);
     }
 
     let isDragging = false;

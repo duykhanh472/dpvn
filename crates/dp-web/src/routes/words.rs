@@ -6,6 +6,7 @@ use axum::{
 };
 use dp_core::viet;
 use dp_db::queries::{
+    admin_audit::{NewAdminAction, record_admin_action},
     projects::get_project_by_id,
     words::{
         add_project_word, add_site_word, count_project_words, count_site_words, list_project_words,
@@ -33,7 +34,20 @@ pub struct WordActionForm {
     pub action: String,
     pub kind: String,
     pub word: String,
+    /// Explicit confirmation for destructive deletes.
+    #[serde(default)]
+    pub confirm: Option<String>,
     pub csrf_token: String,
+}
+
+/// Require the explicit confirmation field used by destructive forms.
+fn require_confirm(value: Option<&str>) -> Result<(), AppError> {
+    match value.map(str::trim) {
+        Some("1" | "true" | "on" | "yes") => Ok(()),
+        _ => Err(AppError::BadRequest(
+            "Vui lòng xác nhận thao tác phá hủy này.".to_string(),
+        )),
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +155,7 @@ pub async fn project_words_submit(
             add_project_word(&state.db, id, &form.kind, &normalized, Some(auth.user_id.0)).await?;
         }
         "delete" => {
+            require_confirm(form.confirm.as_deref())?;
             remove_project_word(&state.db, id, &form.kind, &normalized).await?;
         }
         _ => return Err(AppError::BadRequest("Thao tác không hợp lệ.".to_string())),
@@ -239,10 +254,34 @@ pub async fn admin_words_submit(
             add_site_word(&state.db, &form.kind, &normalized, Some(auth.user_id.0)).await?;
         }
         "delete" => {
+            require_confirm(form.confirm.as_deref())?;
             remove_site_word(&state.db, &form.kind, &normalized).await?;
         }
         _ => return Err(AppError::BadRequest("Thao tác không hợp lệ.".to_string())),
     }
+
+    // Record the administrative action before refreshing the cache.
+    let (action, verb) = if form.action == "add" {
+        ("site_word.add", "thêm")
+    } else {
+        ("site_word.delete", "xóa")
+    };
+    let detail = format!(
+        "{verb} từ '{}' ({}) vào từ điển hệ thống",
+        normalized, form.kind
+    );
+    record_admin_action(
+        &state.db,
+        &NewAdminAction {
+            actor_id: auth.user_id.0,
+            actor_username: &auth.username,
+            action,
+            target_type: "site_word",
+            target_id: None,
+            detail: &detail,
+        },
+    )
+    .await?;
 
     // Refresh in-memory site_words cache (§9.6)
     if let Ok((good, bad)) = dp_db::queries::words::get_all_site_words(&state.db).await {

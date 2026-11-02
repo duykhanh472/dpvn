@@ -18,6 +18,7 @@ use crate::auth::{
     AuthUser, build_expired_cookie, build_session_cookie, generate_csrf_token, generate_token,
     hash_password, hash_token, send_activation_email, validate_password, verify_password,
 };
+use crate::settings::SiteSettings;
 
 /// Form submission data for user registration.
 #[derive(Debug, Deserialize)]
@@ -86,11 +87,13 @@ fn validate_email(email: &str) -> Result<(), DomainError> {
 
 /// Render the registration form.
 pub async fn register_page(State(state): State<AppState>) -> Result<Response, AppError> {
+    let site_settings = SiteSettings::load(&state.db, &state.config.limits).await?;
     let tmpl = state.templates.get_template("auth/register.html")?;
     let rendered = tmpl.render(context! {
         csrf_token => "",
         error => None::<String>,
         success => None::<String>,
+        registration_open => site_settings.registration_open,
     })?;
     Ok(Html(rendered).into_response())
 }
@@ -101,6 +104,18 @@ pub async fn register_submit(
     headers: HeaderMap,
     Form(form): Form<RegisterForm>,
 ) -> Result<Response, AppError> {
+    let site_settings = SiteSettings::load(&state.db, &state.config.limits).await?;
+    if !site_settings.registration_open {
+        let tmpl = state.templates.get_template("auth/register.html")?;
+        let rendered = tmpl.render(context! {
+            csrf_token => "",
+            error => Some("Đăng ký tài khoản đang tạm đóng. Vui lòng liên hệ quản trị viên.".to_string()),
+            success => None::<String>,
+            registration_open => false,
+        })?;
+        return Ok((StatusCode::FORBIDDEN, Html(rendered)).into_response());
+    }
+
     let client_ip = get_client_ip(&headers);
 
     // 1. Rate limiting: 5 registrations per hour per IP

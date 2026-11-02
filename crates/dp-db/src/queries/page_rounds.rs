@@ -728,7 +728,9 @@ pub async fn claim_specific_page(
             AND round = ?
             AND state = 'available'
             AND (? IS NULL OR NOT EXISTS (
-                  SELECT 1 FROM page_rounds prev
+                  SELECT 1 FROM (
+                      SELECT page_id, round, proofer_id FROM page_rounds
+                  ) AS prev
                   WHERE prev.page_id = ?
                     AND prev.round = ?
                     AND prev.proofer_id = ?))",

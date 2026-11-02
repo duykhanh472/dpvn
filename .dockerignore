@@ -1,0 +1,15 @@
+# Keep the build context small and never bake secrets into an image.
+.git
+.gitignore
+.github
+target
+node_modules
+static
+backups
+certs
+certbot
+data
+*.log
+.env
+local.config.toml
+IMPLEMENTATION_PLAN.md
